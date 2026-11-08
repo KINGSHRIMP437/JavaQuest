@@ -275,6 +275,8 @@ public class BattleScreen extends JPanel {
 
             if (i == 0) {
                 b.addActionListener(e -> startQuiz());
+            } else if (i == 3) { // 도망: 패배 처리 없이 스테이지 맵으로
+                b.addActionListener(e -> { if (listener != null) listener.onBattleEnd(false); });
             } else {
                 b.addActionListener(e -> messageArea.setText("준비 중인 기능입니다."));
             }
