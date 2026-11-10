@@ -14,7 +14,8 @@ public class BattleScreen extends JPanel {
     private BattleEngine engine = new BattleEngine();
     private BattleListener listener;
     private Random random = new Random();
-    private List<QuizItem> pool = new ArrayList<>();
+    private List<QuizItem> allQuestions = new ArrayList<>(); // 이번 스테이지 전체 문제
+    private List<QuizItem> pool = new ArrayList<>();         // 아직 맞히지 않은 문제
     private QuizItem current;
     private int stageNo;
     private String currentTopicId;
@@ -62,11 +63,15 @@ public class BattleScreen extends JPanel {
         flashTimer = new Timer(100, e -> flashStep());
     }
 
-    public void startBattle(String topicId, String topicName, int stageNo, String bossName, List<QuizItem> questions, int attacks) {
-        this.stageNo = stageNo;
+    public void startBattle(String topicName, Stage stage, List<QuizItem> questions) {
+        String topicId = stage.getTopic();
+        String bossName = stage.getBossName();
+        this.stageNo = stage.getStageNo();
         this.currentTopicId = topicId;
+        allQuestions = new ArrayList<>(questions);
         pool = new ArrayList<>(questions);
-        engine.startBattle(bossName, questions.size(), attacks);
+        // 공격 횟수 = 문제 수, 보스 HP = 문제 수 × 스테이지 HP 비율
+        engine.startBattle(bossName, stage.getBossHp(questions.size()), questions.size());
         timer.stop();
         lastHearts = engine.getPlayerHearts();
 
@@ -300,6 +305,8 @@ public class BattleScreen extends JPanel {
     }
 
     private void startQuiz() {
+        // 보스 HP가 문제 수보다 많으면 문제를 다 맞힌 뒤 처음부터 다시 출제
+        if (pool.isEmpty()) pool = new ArrayList<>(allQuestions);
         if (pool.isEmpty()) return;
         current = pool.get(random.nextInt(pool.size()));
 

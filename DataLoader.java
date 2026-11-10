@@ -23,10 +23,11 @@ public class DataLoader {
         return questionList;
     }
 
-    // 주제와 스테이지 번호에 맞는 보스 이름
-    public static String loadBossName(String filePath, String targetTopic, int targetStage) {
+    // 주제와 스테이지 번호에 맞는 스테이지 정보 (보스 이름, HP 비율)
+    public static Stage loadStage(String filePath, String targetTopic, int targetStage) {
         if (stageManager == null) stageManager = new StageManager(filePath);
         Stage stage = stageManager.findStage(targetTopic, targetStage);
-        return stage != null ? stage.getBossName() : "Unknown Boss";
+        // 데이터가 없을 경우를 대비한 안전 장치
+        return stage != null ? stage : new Stage(targetTopic, targetStage, "Unknown Boss", 50);
     }
 }

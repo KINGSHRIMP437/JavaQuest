@@ -49,11 +49,11 @@ public class GameFrame extends JFrame {
         }
 
         stageMapScreen = new StageMapScreen(topicId, stageNo -> {
-            // 텍스트 파일로부터 주제별/난이도별 문제 목록과 보스 이름 동적 로드
+            // 텍스트 파일로부터 주제별/난이도별 문제 목록과 스테이지(보스 이름·HP) 동적 로드
             List<QuizItem> questions = DataLoader.loadQuestions("questions.txt", topicId, stageNo);
-            String bossName = DataLoader.loadBossName("monsters.txt", topicId, stageNo);
-            
-            battleScreen.startBattle(topicId, getTopicTitle(topicId), stageNo, bossName, questions, questions.size());
+            Stage stage = DataLoader.loadStage("monsters.txt", topicId, stageNo);
+
+            battleScreen.startBattle(getTopicTitle(topicId), stage, questions);
             cardLayout.show(mainContainer, "battle");
         }, () -> {
             cardLayout.show(mainContainer, "topicSelect");
