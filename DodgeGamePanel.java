@@ -29,23 +29,39 @@ public class DodgeGamePanel extends JPanel {
     int fireCounter = 0;
 
     // 포탑 빔 패턴 (테스트: coding 1스테이지)
-    // 탄막 3초 → 위쪽 포탑 10개 일제 사격 → 왼쪽 포탑 6개 일제 사격. 매번 한 줄만 안전
     // 포탑 한 번: 등장(미끄러져 들어옴) → 충전(빛·예고선) → 발사(빔·번쩍임·흔들림) → 사라짐
+    private static final int ALL = 0;    // 일제 사격: 모든 줄이 동시에 발사, 한 줄만 안전
+    private static final int SEQ = 1;    // 순차 사격: 한 줄씩 차례로 발사 (방향은 매번 무작위)
+    private static final int RING = 2;   // 원형 사격: 원 위의 포탑이 시계 방향으로 하나씩 플레이어를 조준해 발사
+
     private static final int BULLET_END_MS = 3000;
     private static final int SLIDE_MS = 250;
-    private static final int CHARGE_MS = 900;
-    private static final int FIRE_MS = 600;
     private static final int FADE_MS = 200;
-    private static final int WAVE_LEN_MS = SLIDE_MS + CHARGE_MS + FIRE_MS + FADE_MS;
-    // {시작 시각(ms), 방향(1=위에서 아래, 0=왼쪽에서 오른쪽), 줄 수(안전한 줄 1개 포함)}
-    private static final int[][] WAVE_SCRIPT = {
-        {3000, 1, 11},
-        {5000, 0, 7},
+    // 패턴별 {충전 시간, 발사 시간, 다음 포탑까지 간격} (ms)
+    private static final int[][] TIMING = {
+        {900, 600, 0},     // ALL
+        {600, 160, 500},   // SEQ: 앞 줄 빔이 끝나고 다음 줄이 쏘기 전까지 약 0.4초 틈 → 지나간 줄로 피하기
+        {650, 350, 260},   // RING
     };
-    private static final int PATTERN_END_MS = 5000 + WAVE_LEN_MS + 250;
+    private static final int RING_LOCK_MS = 250;   // 원형 포탑이 발사 직전 조준을 고정하는 시간
+    private static final int RING_BEAM_W = 34;
+    private static final int BEAM_LEN = 1500;
+    // {시작 시각(ms), 패턴, 방향(1=세로 빔, 0=가로 빔), 포탑 수}
+    private static final int[][] SCRIPT = {
+        {3000,  ALL,  1, 11},   // 위쪽 포탑 일제 사격
+        {5000,  ALL,  0, 7},    // 왼쪽 포탑 일제 사격
+        {7000,  SEQ,  0, 7},    // 가로 빔 순차: 위→아래 또는 아래→위
+        {11400, SEQ,  1, 11},   // 세로 빔 순차: 왼쪽→오른쪽 또는 오른쪽→왼쪽
+        {17800, RING, 0, 12},   // 원형 포탑 12개 순차 조준 사격
+    };
+    private static final int PATTERN_END_MS = computePatternEnd();
     private static final Color BEAM_COLOR = new Color(0, 230, 220);
+
     long startTime;
-    int[] safeLanes = new int[WAVE_SCRIPT.length];
+    int[] safeLanes = new int[SCRIPT.length];             // ALL: 비워 둘 줄
+    boolean[] reversed = new boolean[SCRIPT.length];      // SEQ: 발사 방향 반대로
+    double[] ringOffset = new double[SCRIPT.length];      // RING: 첫 포탑 각도
+    double[][] ringAim = new double[SCRIPT.length][];     // RING: 포탑별 현재 조준 각도
 
     private final Set<Integer> pressedKeys = new HashSet<>();
     private Consumer<Integer> onFinish;
@@ -116,7 +132,13 @@ public class DodgeGamePanel extends JPanel {
         laserTimer = 0;
         isLaserCharging = false;
         isLaserFiring = false;
-        for (int i = 0; i < WAVE_SCRIPT.length; i++) safeLanes[i] = rand.nextInt(WAVE_SCRIPT[i][2]);
+        for (int i = 0; i < SCRIPT.length; i++) {
+            int lanes = SCRIPT[i][3];
+            safeLanes[i] = SCRIPT[i][1] == ALL ? rand.nextInt(lanes) : -1;
+            reversed[i] = rand.nextBoolean();
+            ringOffset[i] = rand.nextDouble() * Math.PI * 2;
+            ringAim[i] = new double[lanes];
+        }
         pressedKeys.clear();
     }
 
@@ -186,10 +208,10 @@ public class DodgeGamePanel extends JPanel {
         }
 
         if (useCannonPattern()) {
-            for (int i = 0; i < WAVE_SCRIPT.length; i++) {
-                long t = elapsed - WAVE_SCRIPT[i][0];
-                if (t < 0 || t >= WAVE_LEN_MS) continue;
-                drawWave(g2, t, WAVE_SCRIPT[i][1] == 1, WAVE_SCRIPT[i][2], safeLanes[i], playerRect, panelWidth, panelHeight);
+            for (int ev = 0; ev < SCRIPT.length; ev++) {
+                long t = elapsed - SCRIPT[ev][0];
+                if (t < 0 || t >= eventLength(SCRIPT[ev])) continue;
+                drawEvent(g2, ev, t, playerRect, panelWidth, panelHeight);
             }
         } else {
             drawRandomLaser(g, playerRect, panelWidth, panelHeight);
@@ -198,85 +220,178 @@ public class DodgeGamePanel extends JPanel {
         drawPlayerAndStatus(g);
     }
 
-    // 포탑 빔 패턴을 쓰는 스테이지 (지금은 테스트로 coding 1스테이지만)
+    // 포탑 패턴을 쓰는 스테이지 (지금은 테스트로 coding 1스테이지만)
     private boolean useCannonPattern() {
         return "coding".equals(currentTopicId) && currentStage == 1;
     }
 
-    // 포탑 한 줄 일제 사격. t = 이 웨이브가 시작된 뒤 지난 시간(ms)
-    private void drawWave(Graphics2D g2, long t, boolean vertical, int lanes, int safe,
-                          Rectangle playerRect, int w, int h) {
+    // ---------- 패턴 시간 계산 ----------
+
+    // 이벤트 하나의 전체 길이: 등장 + (포탑 수-1)×간격 + 충전 + 발사 + 퇴장
+    private static int eventLength(int[] e) {
+        int[] tm = TIMING[e[1]];
+        return SLIDE_MS + (e[3] - 1) * tm[2] + tm[0] + tm[1] + FADE_MS;
+    }
+
+    private static int computePatternEnd() {
+        int end = 0;
+        for (int[] e : SCRIPT) end = Math.max(end, e[0] + eventLength(e));
+        return end + 250;
+    }
+
+    // 포탑(줄) 하나가 충전을 시작하는 시각 (이벤트 시작 기준)
+    private long chargeStart(int ev, int lane) {
+        int type = SCRIPT[ev][1], lanes = SCRIPT[ev][3];
+        int order = (type == SEQ && reversed[ev]) ? lanes - 1 - lane : lane;
+        return SLIDE_MS + (long) order * TIMING[type][2];
+    }
+
+    // ---------- 패턴 그리기 ----------
+
+    // t = 이 이벤트가 시작된 뒤 지난 시간(ms)
+    private void drawEvent(Graphics2D g2, int ev, long t, Rectangle playerRect, int w, int h) {
+        int type = SCRIPT[ev][1];
+        int lanes = SCRIPT[ev][3];
         int left = 20, top = 20, right = w - 20, bottom = h - 20;
-        double laneSize = (vertical ? right - left : bottom - top) / (double) lanes;
-        long chargeT = t - SLIDE_MS;
-        long fireT = chargeT - CHARGE_MS;
-        long fadeT = fireT - FIRE_MS;
+        long len = eventLength(SCRIPT[ev]);
 
-        // 등장: 화면 밖에서 미끄러져 들어옴 (끝에서 감속)
-        double slide = Math.min(1.0, t / (double) SLIDE_MS);
-        slide = 1 - Math.pow(1 - slide, 3);
-        int cannonPos = (int) Math.round(-30 + 68 * slide);   // 가장자리에서 포탑까지 거리 (-30 → 38)
-        int beamStart = cannonPos + 16;                         // 포구 위치
+        // 등장: 화면 밖에서 미끄러져 들어옴 (끝에서 감속) / 퇴장: 서서히 투명해짐
+        double slide = 1 - Math.pow(1 - Math.min(1.0, t / (double) SLIDE_MS), 3);
+        float alpha = t > len - FADE_MS ? Math.max(0f, (len - t) / (float) FADE_MS) : 1f;
 
-        // 퇴장: 서서히 투명해짐
-        float alpha = fadeT > 0 ? Math.max(0f, 1f - fadeT / (float) FADE_MS) : 1f;
         Composite oldComposite = g2.getComposite();
+        Shape oldClip = g2.getClip();
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        g2.clipRect(left, top, right - left, bottom - top);   // 포탑과 빔이 테두리 밖으로 안 나가게
 
+        double flash = 0;
         for (int lane = 0; lane < lanes; lane++) {
-            if (lane == safe) continue;
-            int laneStart = (vertical ? left : top) + (int) Math.round(lane * laneSize) + 3;
-            int size = (int) Math.round(laneSize) - 6;   // 빔 사이 틈(6px)은 플레이어(20px)보다 좁아 못 빠져나감
-            int center = laneStart + size / 2;
-            Rectangle laneRect = vertical
-                    ? new Rectangle(laneStart, top, size, bottom - top)
-                    : new Rectangle(left, laneStart, right - left, size);
-
-            // 충전 중: 빔이 지나갈 자리를 깜빡이며 예고
-            if (chargeT >= 0 && fireT < 0) {
-                boolean blink = (chargeT / 90) % 2 == 0;
-                g2.setColor(new Color(0, 220, 210, blink ? 70 : 30));
-                g2.fill(laneRect);
-            }
-
-            // 발사 중: 굵은 빔이 순간 확 펼쳐졌다가 가늘어지며 사라짐
-            if (fireT >= 0 && fireT < FIRE_MS) {
-                double k = fireT < 70 ? fireT / 70.0
-                         : fireT > FIRE_MS - 160 ? (FIRE_MS - fireT) / 160.0 : 1.0;
-                double wobble = 1 + 0.08 * Math.sin(fireT / 18.0);   // 빔 굵기가 살짝 떨림
-                int beamW = (int) Math.round(size * k * wobble);
-                int coreW = (int) Math.round(beamW * 0.45);
-                drawBeam(g2, vertical, center, beamStart, vertical ? bottom : right, beamW + 8,
-                         new Color(BEAM_COLOR.getRed(), BEAM_COLOR.getGreen(), BEAM_COLOR.getBlue(), 60));
-                drawBeam(g2, vertical, center, beamStart, vertical ? bottom : right, beamW,
-                         new Color(BEAM_COLOR.getRed(), BEAM_COLOR.getGreen(), BEAM_COLOR.getBlue(), 190));
-                drawBeam(g2, vertical, center, beamStart, vertical ? bottom : right, coreW, Color.WHITE);
-                if (k > 0.5 && playerRect.intersects(laneRect)) applyHit();
-            }
-
-            drawCannon(g2, vertical ? center : cannonPos, vertical ? cannonPos : center, vertical, chargeT, fireT);
+            if (lane == safeLanes[ev]) continue;
+            long chargeT = t - chargeStart(ev, lane);
+            long fireT = chargeT - TIMING[type][0];
+            double f = type == RING
+                    ? drawRingTurret(g2, ev, lane, lanes, chargeT, fireT, slide, playerRect, w, h)
+                    : drawLaneTurret(g2, type, SCRIPT[ev][2] == 1, lane, lanes, chargeT, fireT, slide,
+                                     playerRect, left, top, right, bottom);
+            flash = Math.max(flash, f);
         }
+        g2.setClip(oldClip);
         g2.setComposite(oldComposite);
 
         // 발사 순간 화면 번쩍임
-        if (fireT >= 0 && fireT < 120) {
-            g2.setColor(new Color(255, 255, 255, (int) (100 * (1 - fireT / 120.0))));
+        if (flash > 0) {
+            g2.setColor(new Color(255, 255, 255, (int) Math.min(255, flash)));
             g2.fillRect(left, top, right - left, bottom - top);
         }
     }
 
-    private void drawBeam(Graphics2D g2, boolean vertical, int center, int start, int end, int width, Color c) {
-        if (width <= 0) return;
-        g2.setColor(c);
-        if (vertical) g2.fillRect(center - width / 2, start, width, end - start);
-        else g2.fillRect(start, center - width / 2, end - start, width);
+    // 일제·순차 사격: 줄마다 포탑 하나. 반환값 = 화면 번쩍임 세기
+    private double drawLaneTurret(Graphics2D g2, int type, boolean vertical, int lane, int lanes,
+                                  long chargeT, long fireT, double slide, Rectangle playerRect,
+                                  int left, int top, int right, int bottom) {
+        int fireLen = TIMING[type][1];
+        double laneSize = (vertical ? right - left : bottom - top) / (double) lanes;
+        int laneStart = (vertical ? left : top) + (int) Math.round(lane * laneSize) + 3;
+        int size = (int) Math.round(laneSize) - 6;   // 빔 사이 틈(6px)은 플레이어(20px)보다 좁아 못 빠져나감
+        int center = laneStart + size / 2;
+        int cannonPos = (int) Math.round(-30 + 68 * slide);   // 가장자리에서 포탑까지 (-30 → 38)
+        Rectangle laneRect = vertical
+                ? new Rectangle(laneStart, top, size, bottom - top)
+                : new Rectangle(left, laneStart, right - left, size);
+        double angle = vertical ? Math.PI / 2 : 0;   // 빔 방향: 아래 또는 오른쪽
+
+        // 충전 중: 빔이 지나갈 자리를 깜빡이며 예고
+        if (chargeT >= 0 && fireT < 0) {
+            boolean blink = (chargeT / 90) % 2 == 0;
+            g2.setColor(new Color(0, 220, 210, blink ? 70 : 30));
+            g2.fill(laneRect);
+        }
+
+        double flash = 0;
+        if (fireT >= 0 && fireT < fireLen) {
+            int mx = vertical ? center : cannonPos + 16;
+            int my = vertical ? cannonPos + 16 : center;
+            double k = drawBeamFx(g2, mx, my, angle, size, fireT, fireLen);
+            if (k > 0.5 && playerRect.intersects(laneRect)) applyHit();
+            if (fireT < 120) flash = (type == ALL ? 100 : 30) * (1 - fireT / 120.0);
+        }
+
+        drawCannon(g2, vertical ? center : cannonPos, vertical ? cannonPos : center,
+                   angle - Math.PI / 2, chargeT, TIMING[type][0], fireT);
+        return flash;
     }
 
-    // </> 모양 포탑. 기본은 아래를 향하고, 가로 웨이브는 오른쪽을 향하도록 회전
-    private void drawCannon(Graphics2D g2, int cx, int cy, boolean vertical, long chargeT, long fireT) {
+    // 원형 사격: 타원 위에 포탑을 두고, 충전하는 동안 플레이어를 따라 조준하다가 발사 직전에 고정
+    private double drawRingTurret(Graphics2D g2, int ev, int lane, int lanes, long chargeT, long fireT,
+                                  double slide, Rectangle playerRect, int w, int h) {
+        int chargeLen = TIMING[RING][0], fireLen = TIMING[RING][1];
+        double cx = w / 2.0, cy = h / 2.0;
+        double rx = w / 2.0 - 55, ry = h / 2.0 - 48;
+        double scale = 1.5 - 0.5 * slide;                        // 바깥에서 안쪽으로 모여듦
+        double theta = ringOffset[ev] + lane * Math.PI * 2 / lanes;   // 각도가 커지는 쪽 = 시계 방향
+        double tx = cx + rx * scale * Math.cos(theta);
+        double ty = cy + ry * scale * Math.sin(theta);
+        double px = playerRect.getCenterX(), py = playerRect.getCenterY();
+
+        double[] aim = ringAim[ev];
+        if (chargeT < 0) aim[lane] = Math.atan2(cy - ty, cx - tx);              // 대기: 가운데를 바라봄
+        else if (fireT < -RING_LOCK_MS) aim[lane] = Math.atan2(py - ty, px - tx); // 충전: 플레이어 추적
+        double a = aim[lane];                                                     // 고정 후에는 그대로
+        double mx = tx + 16 * Math.cos(a), my = ty + 16 * Math.sin(a);           // 포구 위치
+        double ex = mx + BEAM_LEN * Math.cos(a), ey = my + BEAM_LEN * Math.sin(a);
+
+        // 충전 중: 조준선 (추적 중엔 점선 깜빡임, 고정되면 실선)
+        if (chargeT >= 0 && fireT < 0) {
+            boolean locked = fireT >= -RING_LOCK_MS;
+            boolean blink = (chargeT / 80) % 2 == 0;
+            g2.setColor(new Color(0, 220, 210, locked ? 170 : (blink ? 100 : 45)));
+            g2.setStroke(locked ? new BasicStroke(3)
+                    : new BasicStroke(1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, new float[]{8, 6}, 0));
+            g2.draw(new java.awt.geom.Line2D.Double(mx, my, ex, ey));
+            g2.setStroke(new BasicStroke(1));
+        }
+
+        double flash = 0;
+        if (fireT >= 0 && fireT < fireLen) {
+            double k = drawBeamFx(g2, mx, my, a, RING_BEAM_W, fireT, fireLen);
+            if (k > 0.5 && java.awt.geom.Line2D.ptSegDist(mx, my, ex, ey, px, py) < RING_BEAM_W / 2.0 + 8) applyHit();
+            if (fireT < 120) flash = 40 * (1 - fireT / 120.0);
+        }
+
+        drawCannon(g2, tx, ty, a - Math.PI / 2, chargeT, chargeLen, fireT);
+        return flash;
+    }
+
+    // 빔 이펙트 (모든 패턴 공통): 순간 확 펼쳐졌다가 가늘어지며 사라짐. 반환값 = 현재 굵기 비율(0~1)
+    private double drawBeamFx(Graphics2D g2, double mx, double my, double angle, int size, long fireT, int fireLen) {
+        double rise = Math.min(70, fireLen * 0.25), fall = Math.min(160, fireLen * 0.4);
+        double k = fireT < rise ? fireT / rise
+                 : fireT > fireLen - fall ? (fireLen - fireT) / fall : 1.0;
+        double wobble = 1 + 0.08 * Math.sin(fireT / 18.0);   // 빔 굵기가 살짝 떨림
+        int beamW = (int) Math.round(size * k * wobble);
+        int coreW = (int) Math.round(beamW * 0.45);
+
+        java.awt.geom.AffineTransform saved = g2.getTransform();
+        g2.translate(mx, my);
+        g2.rotate(angle);
+        fillBeamLayer(g2, beamW + 8, new Color(BEAM_COLOR.getRed(), BEAM_COLOR.getGreen(), BEAM_COLOR.getBlue(), 60));
+        fillBeamLayer(g2, beamW, new Color(BEAM_COLOR.getRed(), BEAM_COLOR.getGreen(), BEAM_COLOR.getBlue(), 190));
+        fillBeamLayer(g2, coreW, Color.WHITE);
+        g2.setTransform(saved);
+        return k;
+    }
+
+    private void fillBeamLayer(Graphics2D g2, int width, Color c) {
+        if (width <= 0) return;
+        g2.setColor(c);
+        g2.fillRect(0, -width / 2, BEAM_LEN, width);
+    }
+
+    // </> 모양 포탑. rotation = 0이면 아래를 향함
+    private void drawCannon(Graphics2D g2, double cx, double cy, double rotation, long chargeT, int chargeLen, long fireT) {
         java.awt.geom.AffineTransform saved = g2.getTransform();
         g2.translate(cx, cy);
-        if (!vertical) g2.rotate(-Math.PI / 2);
+        g2.rotate(rotation);
         if (fireT >= 0 && fireT < 150) g2.translate(0, -4 * (1 - fireT / 150.0));   // 발사 반동
 
         g2.setColor(new Color(35, 40, 60));
@@ -293,7 +408,7 @@ public class DodgeGamePanel extends JPanel {
 
         // 충전 빛: 포구에 빛이 점점 커지며 깜빡임
         if (chargeT >= 0 && fireT < 0) {
-            double p = chargeT / (double) CHARGE_MS;
+            double p = Math.min(1.0, chargeT / (double) chargeLen);
             int r = (int) Math.round(3 + 10 * p);
             int a = (int) Math.round((110 + 145 * p) * ((chargeT / 60) % 2 == 0 ? 1.0 : 0.6));
             g2.setColor(new Color(190, 255, 250, Math.min(255, a)));
@@ -302,16 +417,20 @@ public class DodgeGamePanel extends JPanel {
         g2.setTransform(saved);
     }
 
-    // 빔이 발사된 직후 0.25초 동안 화면을 흔든다
+    // 빔이 발사된 직후 잠깐 화면을 흔든다 (일제 사격이 가장 세게)
     private int[] shakeOffset(long elapsed) {
-        for (int[] wave : WAVE_SCRIPT) {
-            long fireT = elapsed - wave[0] - SLIDE_MS - CHARGE_MS;
-            if (fireT >= 0 && fireT < 250) {
-                int m = (int) Math.round(6 * (1 - fireT / 250.0));
-                return new int[]{rand.nextInt(2 * m + 1) - m, rand.nextInt(2 * m + 1) - m};
+        double[] power = {6, 3, 4};   // ALL, SEQ, RING
+        double m = 0;
+        for (int ev = 0; ev < SCRIPT.length; ev++) {
+            int type = SCRIPT[ev][1];
+            for (int lane = 0; lane < SCRIPT[ev][3]; lane++) {
+                if (lane == safeLanes[ev]) continue;
+                long fireT = elapsed - SCRIPT[ev][0] - chargeStart(ev, lane) - TIMING[type][0];
+                if (fireT >= 0 && fireT < 220) m = Math.max(m, power[type] * (1 - fireT / 220.0));
             }
         }
-        return new int[]{0, 0};
+        int s = (int) Math.round(m);
+        return new int[]{rand.nextInt(2 * s + 1) - s, rand.nextInt(2 * s + 1) - s};
     }
 
     // 기존 패턴: 무작위 위치에 레이저 1개
