@@ -48,6 +48,7 @@ public class BattleScreen extends JPanel {
     private int remain;
 
     private DodgeGamePanel dodgeGamePanel;
+    private NameQuizPanel nameQuizPanel; // 이름 맞추기 주제 전용 이미지 퀴즈
 
     public BattleScreen() {
         setPreferredSize(new Dimension(1050, 800));
@@ -71,7 +72,13 @@ public class BattleScreen extends JPanel {
         allQuestions = new ArrayList<>(questions);
         pool = new ArrayList<>(questions);
         // 공격 횟수 = 문제 수, 보스 HP = 문제 수 × 스테이지 HP 비율
-        engine.startBattle(bossName, stage.getBossHp(questions.size()), questions.size());
+        int count = questions.size();
+        int bossHp = stage.getBossHp(count);
+        if (isNameQuiz()) { // 이름 맞추기: 무작위 5문제, 보스 HP는 스테이지별 (없으면 기존 4지선다)
+            int n = nameQuizPanel.prepare(stageNo);
+            if (n > 0) { count = n; bossHp = NameQuizPanel.bossHpFor(stageNo, n); }
+        }
+        engine.startBattle(bossName, bossHp, count);
         timer.stop();
         lastHearts = engine.getPlayerHearts();
 
@@ -106,6 +113,14 @@ public class BattleScreen extends JPanel {
         String text = hitsTaken > 0 ? "탄막에 " + hitsTaken + "번 맞았다!" : "공격을 모두 피했다!";
         if (engine.isLose()) {
             showEnd(false, text, "패배");
+        } else if (isNameQuiz() && nameQuizPanel.hasQuestions()) {
+            // 이름 맞추기: 결과를 1초 보여 주고 버튼 없이 다음 문제로
+            messageArea.setText(text + "\n\n다음 문제!");
+            showCard(centerCards, "msg");
+            showCard(bottomCards, "wait");
+            Timer next = new Timer(1000, e -> startQuiz());
+            next.setRepeats(false);
+            next.start();
         } else {
             messageArea.setText(text);
             showCard(centerCards, "msg");
@@ -229,6 +244,9 @@ public class BattleScreen extends JPanel {
         centerCards.add(quizPanel, "quiz");
         centerCards.add(dodgeWrapper, "dodge");
 
+        nameQuizPanel = new NameQuizPanel((correct, timeout, quiz) -> finishNameQuiz(correct, timeout, quiz));
+        centerCards.add(nameQuizPanel, "nameQuiz");
+
         add(centerCards, BorderLayout.CENTER);
     }
 
@@ -304,7 +322,40 @@ public class BattleScreen extends JPanel {
         return p;
     }
 
+    private boolean isNameQuiz() {
+        return "name".equals(currentTopicId);
+    }
+
+    // 이름 맞추기 결과: 정답이면 보스 HP -1, 오답·시간 초과면 하트 절반
+    // 전투가 끝나지 않았으면 결과 글자를 잠깐 띄우고 Enter 없이 탄막으로 → 탄막 후 다음 문제
+    private void finishNameQuiz(boolean correct, boolean timeout, NameQuiz quiz) {
+        engine.submitAnswer(correct);
+        if (correct) {
+            monsterView.hit();
+        } else {
+            int lose = NameQuizPanel.heartsToLose(engine.getPlayerHearts());
+            for (int i = 0; i < lose; i++) engine.hitByBullet();
+        }
+        updateStatus();
+
+        String text = correct ? "정답! " : (timeout ? "시간 초과! " : "오답! ") + "(정답: " + quiz.getMainAnswer() + ")\n하트가 절반으로 줄었다!";
+        if (engine.isWin()) {
+            showEnd(true, text + "\n\n해설: " + quiz.getExplain(), "");
+        } else if (engine.isLose()) {
+            showEnd(false, text + "\n\n해설: " + quiz.getExplain(), "패배");
+        } else {
+            String shortText = correct ? "정답!" : (timeout ? "시간 초과! " : "오답! ") + "정답: " + quiz.getMainAnswer();
+            nameQuizPanel.showResult(shortText, correct, correct ? 1000 : 1500, this::startEnemyTurn);
+        }
+    }
+
     private void startQuiz() {
+        if (isNameQuiz() && nameQuizPanel.hasQuestions()) {
+            showCard(centerCards, "nameQuiz");
+            showCard(bottomCards, "wait"); // 퀴즈 중에는 공격 버튼 숨김 (연타 방지)
+            nameQuizPanel.startNext();
+            return;
+        }
         // 보스 HP가 문제 수보다 많으면 문제를 다 맞힌 뒤 처음부터 다시 출제
         if (pool.isEmpty()) pool = new ArrayList<>(allQuestions);
         if (pool.isEmpty()) return;
