@@ -196,10 +196,6 @@ public class NameQuizPanel extends JPanel {
         return (stageNo >= 1 && stageNo <= PROMPTS.length) ? PROMPTS[stageNo - 1] : "Q. 이것의 이름은?";
     }
 
-    // 오답 페널티: 남은 하트의 절반(소수점 버림)만 남김 → 잃는 하트 수
-    public static int heartsToLose(int hearts) {
-        return hearts - hearts / 2;
-    }
 
     private void finish(boolean correct, boolean timeout) {
         if (finished) return; // Enter와 시간 초과가 겹쳐도 한 번만 처리

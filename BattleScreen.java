@@ -326,19 +326,14 @@ public class BattleScreen extends JPanel {
         return "name".equals(currentTopicId);
     }
 
-    // 이름 맞추기 결과: 정답이면 보스 HP -1, 오답·시간 초과면 하트 절반
+    // 이름 맞추기 결과: 정답이면 보스 HP -1, 오답·시간 초과면 공격 기회만 소모 (하트는 탄막에서만 감소)
     // 전투가 끝나지 않았으면 결과 글자를 잠깐 띄우고 Enter 없이 탄막으로 → 탄막 후 다음 문제
     private void finishNameQuiz(boolean correct, boolean timeout, NameQuiz quiz) {
         engine.submitAnswer(correct);
-        if (correct) {
-            monsterView.hit();
-        } else {
-            int lose = NameQuizPanel.heartsToLose(engine.getPlayerHearts());
-            for (int i = 0; i < lose; i++) engine.hitByBullet();
-        }
+        if (correct) monsterView.hit();
         updateStatus();
 
-        String text = correct ? "정답! " : (timeout ? "시간 초과! " : "오답! ") + "(정답: " + quiz.getMainAnswer() + ")\n하트가 절반으로 줄었다!";
+        String text = correct ? "정답! " : (timeout ? "시간 초과! " : "오답! ") + "(정답: " + quiz.getMainAnswer() + ")";
         if (engine.isWin()) {
             showEnd(true, text + "\n\n해설: " + quiz.getExplain(), "");
         } else if (engine.isLose()) {

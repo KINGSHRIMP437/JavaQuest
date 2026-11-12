@@ -26,11 +26,6 @@ public class NameQuizTest {
         } catch (IllegalArgumentException e) { failed = true; }
         assert failed : "정답이 없으면 예외";
 
-        // 3. 오답 페널티: 하트 절반 (소수점 버림)
-        assert NameQuizPanel.heartsToLose(3) == 2 : "3 → 1";
-        assert NameQuizPanel.heartsToLose(2) == 1 : "2 → 1";
-        assert NameQuizPanel.heartsToLose(1) == 1 : "1 → 0";
-        assert NameQuizPanel.heartsToLose(0) == 0;
 
         // 4. 파일 읽기: 스테이지 1~3에 10문제씩
         NameQuizManager nm = new NameQuizManager(NameQuizPanel.DIR + "name_quiz.txt");
