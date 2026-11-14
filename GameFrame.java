@@ -1,6 +1,8 @@
 import javax.swing.*;
 import java.awt.*;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class GameFrame extends JFrame {
     private CardLayout cardLayout = new CardLayout();
@@ -12,6 +14,10 @@ public class GameFrame extends JFrame {
     private BattleScreen battleScreen;
 
     private String selectedTopic = "coding";
+    private int currentPlayingStage = 1; // 현재 플레이 중인 스테이지 번호 추적
+
+    // 주제별·스테이지별 최고 별점 저장 (Key: "topicId_stageNo", Value: 별점 1~3)
+    private Map<String, Integer> stageBestStars = new HashMap<>();
 
     public GameFrame() {
         setTitle("JavaQuest - RPG & Quiz");
@@ -22,14 +28,20 @@ public class GameFrame extends JFrame {
         // 1. 화면 인스턴스 생성
         titleScreen = new TitleScreen(() -> cardLayout.show(mainContainer, "topicSelect"));
         
-        // GameFrame.java의 topicSelectScreen 생성 부분을 아래와 같이 수정하세요.
         topicSelectScreen = new TopicSelectScreen(topicId -> {
             selectedTopic = topicId;
             openStageMap(selectedTopic);
         });
 
         battleScreen = new BattleScreen();
+        
+        // 전투 종료 리스너 설정 (승리 시 별점 기록 및 맵 갱신)
         battleScreen.setBattleListener(win -> {
+            if (win) {
+                int remainingHearts = battleScreen.getPlayerHearts();
+                recordStageResult(selectedTopic, currentPlayingStage, win, remainingHearts);
+            }
+            openStageMap(selectedTopic);
             cardLayout.show(mainContainer, "stageMap");
         });
 
@@ -43,13 +55,34 @@ public class GameFrame extends JFrame {
         setVisible(true);
     }
 
+    // 별점 계산 및 최고 기록 갱신 메서드
+    public void recordStageResult(String topicId, int stageNo, boolean won, int remainingHearts) {
+        if (!won) return; // 패배하거나 도망치면 기록하지 않음
+
+        int stars = 1;
+        if (remainingHearts >= 3) {
+            stars = 3;
+        } else if (remainingHearts == 2) {
+            stars = 2;
+        } else {
+            stars = 1;
+        }
+
+        String key = topicId + "_" + stageNo;
+        int currentBest = stageBestStars.getOrDefault(key, 0);
+        if (stars > currentBest) {
+            stageBestStars.put(key, stars); // 최고 기록보다 높을 때만 갱신
+        }
+    }
+
     private void openStageMap(String topicId) {
         if (stageMapScreen != null) {
             mainContainer.remove(stageMapScreen);
         }
 
-        stageMapScreen = new StageMapScreen(topicId, stageNo -> {
-            // 텍스트 파일로부터 주제별/난이도별 문제 목록과 스테이지(보스 이름·HP) 동적 로드
+        stageMapScreen = new StageMapScreen(topicId, stageBestStars, stageNo -> {
+            currentPlayingStage = stageNo; // 어떤 스테이지를 선택했는지 저장
+            
             List<QuizItem> questions = DataLoader.loadQuestions("questions.txt", topicId, stageNo);
             Stage stage = DataLoader.loadStage("monsters.txt", topicId, stageNo);
 

@@ -28,6 +28,6 @@ public class DataLoader {
         if (stageManager == null) stageManager = new StageManager(filePath);
         Stage stage = stageManager.findStage(targetTopic, targetStage);
         // 데이터가 없을 경우를 대비한 안전 장치
-        return stage != null ? stage : new Stage(targetTopic, targetStage, "Unknown Boss", 50);
+        return stage != null ? stage : new Stage(targetTopic, targetStage, "Unknown Boss", 50, null);
     }
 }

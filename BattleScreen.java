@@ -1,6 +1,10 @@
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.LineBorder;
 import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -14,8 +18,8 @@ public class BattleScreen extends JPanel {
     private BattleEngine engine = new BattleEngine();
     private BattleListener listener;
     private Random random = new Random();
-    private List<QuizItem> allQuestions = new ArrayList<>(); // 이번 스테이지 전체 문제
-    private List<QuizItem> pool = new ArrayList<>();         // 아직 맞히지 않은 문제
+    private List<QuizItem> allQuestions = new ArrayList<>(); 
+    private List<QuizItem> pool = new ArrayList<>();         
     private QuizItem current;
     private int stageNo;
     private String currentTopicId;
@@ -48,7 +52,7 @@ public class BattleScreen extends JPanel {
     private int remain;
 
     private DodgeGamePanel dodgeGamePanel;
-    private NameQuizPanel nameQuizPanel; // 이름 맞추기 주제 전용 이미지 퀴즈
+    private NameQuizPanel nameQuizPanel; 
 
     public BattleScreen() {
         setPreferredSize(new Dimension(1050, 800));
@@ -71,10 +75,10 @@ public class BattleScreen extends JPanel {
         this.currentTopicId = topicId;
         allQuestions = new ArrayList<>(questions);
         pool = new ArrayList<>(questions);
-        // 공격 횟수 = 문제 수, 보스 HP = 문제 수 × 스테이지 HP 비율
+        
         int count = questions.size();
         int bossHp = stage.getBossHp(count);
-        if (isNameQuiz()) { // 이름 맞추기: 무작위 5문제, 보스 HP는 스테이지별 (없으면 기존 4지선다)
+        if (isNameQuiz()) { 
             int n = nameQuizPanel.prepare(stageNo);
             if (n > 0) { count = n; bossHp = NameQuizPanel.bossHpFor(stageNo, n); }
         }
@@ -87,12 +91,16 @@ public class BattleScreen extends JPanel {
         bossHpBar.setMaximum(engine.getBossMaxHp());
         bossHpBar.setValue(engine.getBossHp());
         
-        monsterView.setBossStyle(topicId, stageNo);
+        // 스테이지에서 이미지 경로를 읽어와 MonsterView에 전달
+        monsterView.setBossStyle(topicId, stageNo, stage.getImagePath());
         
         messageArea.setText("* 야생의 " + bossName + "이(가) 나타났다!\n* 힙 메모리 어딘가에서 이상한 기운이 느껴진다.");
         showCard(centerCards, "msg");
         showCard(bottomCards, "cmd");
         updateStatus();
+
+        revalidate();
+        repaint();
     }
 
     public void setBattleListener(BattleListener l) {
@@ -100,21 +108,40 @@ public class BattleScreen extends JPanel {
     }
 
     public void startEnemyTurn() {
+        monsterView.setAttackState();
+
         messageArea.setText("적의 턴! 방향키로 탄막을 피하세요!");
+
         showCard(centerCards, "dodge");
         showCard(bottomCards, "wait");
-        dodgeGamePanel.startDodgeGame(currentTopicId, stageNo);
+
+        centerCards.revalidate();
+        centerCards.repaint();
+
+        SwingUtilities.invokeLater(() -> {
+            dodgeGamePanel.startDodgeGame(currentTopicId, stageNo);
+            dodgeGamePanel.requestFocusInWindow();
+
+            System.out.println(
+                "DodgeGamePanel 크기: "
+                + dodgeGamePanel.getWidth() + " x "
+                + dodgeGamePanel.getHeight()
+            );
+        });
     }
 
     public void endEnemyTurn(int hitsTaken) {
-        for (int i = 0; i < hitsTaken; i++) engine.hitByBullet();
         updateStatus();
 
+        monsterView.setNormalState();
+
         String text = hitsTaken > 0 ? "탄막에 " + hitsTaken + "번 맞았다!" : "공격을 모두 피했다!";
+        
         if (engine.isLose()) {
-            showEnd(false, text, "패배");
-        } else if (isNameQuiz() && nameQuizPanel.hasQuestions()) {
-            // 이름 맞추기: 결과를 1초 보여 주고 버튼 없이 다음 문제로
+            return;
+        }
+
+        if (isNameQuiz() && nameQuizPanel.hasQuestions()) {
             messageArea.setText(text + "\n\n다음 문제!");
             showCard(centerCards, "msg");
             showCard(bottomCards, "wait");
@@ -177,6 +204,7 @@ public class BattleScreen extends JPanel {
 
     private void initCenterArea() {
         centerCards.setOpaque(false);
+        centerCards.setPreferredSize(new Dimension(900, 400));
 
         msgPanel = new JPanel(new BorderLayout());
         msgPanel.setOpaque(false);
@@ -192,7 +220,7 @@ public class BattleScreen extends JPanel {
                 new LineBorder(BORDER_COLOR, 2),
                 BorderFactory.createEmptyBorder(20, 20, 20, 20)
         ));
-        msgPanel.add(messageArea, BorderLayout.CENTER);
+        msgPanel.add(new JScrollPane(messageArea), BorderLayout.CENTER);
 
         quizPanel = new JPanel(new BorderLayout(10, 10));
         quizPanel.setOpaque(false);
@@ -232,13 +260,16 @@ public class BattleScreen extends JPanel {
         quizContent.add(choiceGrid, BorderLayout.SOUTH);
         quizPanel.add(quizContent, BorderLayout.CENTER);
 
-        dodgeGamePanel = new DodgeGamePanel(hits -> endEnemyTurn(hits));
+        dodgeGamePanel = new DodgeGamePanel(
+            hits -> endEnemyTurn(hits),
+            () -> handleRealtimeHit()
+        );
         dodgeGamePanel.setPreferredSize(new Dimension(800, 380));
         dodgeGamePanel.setOpaque(true);
 
-        JPanel dodgeWrapper = new JPanel(new GridBagLayout());
+        JPanel dodgeWrapper = new JPanel(new BorderLayout());
         dodgeWrapper.setOpaque(false);
-        dodgeWrapper.add(dodgeGamePanel);
+        dodgeWrapper.add(dodgeGamePanel, BorderLayout.CENTER);
 
         centerCards.add(msgPanel, "msg");
         centerCards.add(quizPanel, "quiz");
@@ -248,6 +279,16 @@ public class BattleScreen extends JPanel {
         centerCards.add(nameQuizPanel, "nameQuiz");
 
         add(centerCards, BorderLayout.CENTER);
+    }
+
+    private void handleRealtimeHit() {
+        engine.hitByBullet();
+        updateStatus(); 
+
+        if (engine.isLose()) {
+            dodgeGamePanel.stopDodgeGame();
+            showEnd(false, "탄막에 맞아 쓰러졌다...", "패배");
+        }
     }
 
     private void initBottomArea() {
@@ -267,6 +308,8 @@ public class BattleScreen extends JPanel {
 
         bottomCards.setOpaque(false);
         bottomCards.setAlignmentX(Component.LEFT_ALIGNMENT);
+        bottomCards.setPreferredSize(new Dimension(900, 60));
+        
         bottomCards.add(makeCommandPanel(), "cmd");
         bottomCards.add(makeSingleButtonPanel("계속", () -> startEnemyTurn()), "continue");
         
@@ -289,16 +332,18 @@ public class BattleScreen extends JPanel {
         for (int i = 0; i < 4; i++) {
             final String name = names[i];
             JButton b = new JButton(name);
-            b.setBackground(new Color(15, 20, 35));
+            b.setBackground(new Color(25, 30, 50));
             b.setForeground(Color.WHITE);
             b.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+            b.setOpaque(true);
+            b.setContentAreaFilled(true);
             b.setPreferredSize(new Dimension(0, 50));
             b.setBorder(new LineBorder(i == 0 ? BORDER_COLOR : Color.GRAY, i == 0 ? 3 : 2));
             b.setFocusPainted(false);
 
             if (i == 0) {
                 b.addActionListener(e -> startQuiz());
-            } else if (i == 3) { // 도망: 패배 처리 없이 스테이지 맵으로
+            } else if (i == 3) { 
                 b.addActionListener(e -> { if (listener != null) listener.onBattleEnd(false); });
             } else {
                 b.addActionListener(e -> messageArea.setText("준비 중인 기능입니다."));
@@ -312,9 +357,11 @@ public class BattleScreen extends JPanel {
         JPanel p = new JPanel(new GridLayout(1, 1));
         p.setOpaque(false);
         JButton b = new JButton(text);
-        b.setBackground(new Color(15, 20, 35));
+        b.setBackground(new Color(25, 30, 50));
         b.setForeground(Color.YELLOW);
         b.setFont(new Font("맑은 고딕", Font.BOLD, 20));
+        b.setOpaque(true);
+        b.setContentAreaFilled(true);
         b.setPreferredSize(new Dimension(0, 50));
         b.setBorder(new LineBorder(BORDER_COLOR, 2));
         b.addActionListener(e -> action.run());
@@ -326,8 +373,6 @@ public class BattleScreen extends JPanel {
         return "name".equals(currentTopicId);
     }
 
-    // 이름 맞추기 결과: 정답이면 보스 HP -1, 오답·시간 초과면 공격 기회만 소모 (하트는 탄막에서만 감소)
-    // 전투가 끝나지 않았으면 결과 글자를 잠깐 띄우고 Enter 없이 탄막으로 → 탄막 후 다음 문제
     private void finishNameQuiz(boolean correct, boolean timeout, NameQuiz quiz) {
         engine.submitAnswer(correct);
         if (correct) monsterView.hit();
@@ -345,13 +390,17 @@ public class BattleScreen extends JPanel {
     }
 
     private void startQuiz() {
+        monsterView.setNormalState();
+
+        if (quizPanel.isShowing() && timer.isRunning()) {
+            return;
+        }
         if (isNameQuiz() && nameQuizPanel.hasQuestions()) {
             showCard(centerCards, "nameQuiz");
-            showCard(bottomCards, "wait"); // 퀴즈 중에는 공격 버튼 숨김 (연타 방지)
+            showCard(bottomCards, "wait"); 
             nameQuizPanel.startNext();
             return;
         }
-        // 보스 HP가 문제 수보다 많으면 문제를 다 맞힌 뒤 처음부터 다시 출제
         if (pool.isEmpty()) pool = new ArrayList<>(allQuestions);
         if (pool.isEmpty()) return;
         current = pool.get(random.nextInt(pool.size()));
@@ -405,6 +454,7 @@ public class BattleScreen extends JPanel {
 
     private void showEnd(boolean win, String text, String reason) {
         won = win;
+        monsterView.setNormalState();
         messageArea.setText(text + (win ? "\n\n[승리!]" : "\n\n[패배]"));
         showCard(centerCards, "msg");
         showCard(bottomCards, "end");
@@ -436,66 +486,165 @@ public class BattleScreen extends JPanel {
     }
 
     private class MonsterView extends JPanel {
-        private int step = -1;
         private String topicId = "coding";
         private int stage = 1;
 
-        private Timer anim = new Timer(30, e -> {
-            step++;
-            if (step > 20) {
-                step = -1;
-                ((Timer) e.getSource()).stop();
-            }
-            repaint();
-        });
+        private BufferedImage normalImage;
+        private BufferedImage hitImage;
+        private BufferedImage attackImage;
+        private String currentState = "normal"; // "normal", "hit", "attack"
 
         MonsterView() {
             setOpaque(false);
-            setPreferredSize(new Dimension(160, 120));
+            setPreferredSize(new Dimension(240, 150));
         }
 
-        void setBossStyle(String topicId, int stage) {
+        // Stage에서 이미지 경로를 받아 로드하도록 매개변수 추가
+        void setBossStyle(String topicId, int stage, String imagePath) {
             this.topicId = topicId;
             this.stage = stage;
+            loadBossImages(imagePath);
+            currentState = "normal";
+            repaint();
+        }
+
+        private BufferedImage loadAndConvertImage(String imagePath) {
+            if (imagePath == null) return null;
+            try {
+                File file = new File(imagePath);
+                if (!file.exists()) return null;
+                
+                BufferedImage original = ImageIO.read(file);
+                if (original == null) return null;
+
+                // 투명 레이어(알파 채널)가 깨지지 않도록 ARGB 타입의 새 이미지로 완벽하게 복원/변환
+                BufferedImage converted = new BufferedImage(
+                    original.getWidth(), 
+                    original.getHeight(), 
+                    BufferedImage.TYPE_INT_ARGB
+                );
+                Graphics2D g2d = converted.createGraphics();
+                g2d.drawImage(original, 0, 0, null);
+                g2d.dispose();
+                
+                return converted;
+            } catch (IOException e) {
+                return null;
+            }
+        }
+
+        private void loadBossImages(String imagePath) {
+            normalImage = null;
+            hitImage = null;
+            attackImage = null;
+
+            if (imagePath != null) {
+                normalImage = loadAndConvertImage(imagePath);
+
+                int dotIdx = imagePath.lastIndexOf('.');
+                if (dotIdx != -1) {
+                    String basePath = imagePath.substring(0, dotIdx);
+                    String ext = imagePath.substring(dotIdx);
+
+                    hitImage = loadAndConvertImage(basePath + "_hit" + ext);
+                    attackImage = loadAndConvertImage(basePath + "_attack" + ext);
+                }
+            }
+        }
+
+        void setNormalState() {
+            currentState = "normal";
+            repaint();
+        }
+
+        void setHitState() {
+            currentState = "hit";
+            repaint();
+        }
+
+        void setAttackState() {
+            currentState = "attack";
             repaint();
         }
 
         void hit() {
-            step = 0;
-            anim.restart();
+            setHitState();
         }
 
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            int dx = (step >= 0 && step < 10) ? (step % 2 == 0 ? 6 : -6) : 0;
-            
-            Color bossColor = new Color(0, 200, 190);
-            if ("common".equals(topicId)) {
-                bossColor = new Color(240, 160, 40);
-            } else if ("name".equals(topicId)) {
-                bossColor = new Color(200, 80, 220);
-            }
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+
+            int panelW = getWidth();
+            int panelH = getHeight();
 
             int width = 100 + (stage * 5);
             int height = 80 + (stage * 5);
+            int startX = (panelW - width) / 2;
+            int startY = (panelH - height) / 2;
 
-            g.setColor(bossColor);
-            g.fillRect(30 + dx, 30, width, height);
+            drawBoss(g2, startX, startY, width, height);
+        }
 
-            g.setColor(stage == 3 ? Color.RED : Color.WHITE);
-            g.fillRect(50 + dx, 50, 22, 22);
-            g.fillRect(30 + width - 42 + dx, 50, 22, 22);
+        private void drawBoss(Graphics2D g2, int x, int y, int w, int h) {
+            // 현재 상태에 맞는 이미지 선택 (없으면 기본 이미지로 Fallback)
+            BufferedImage targetImage = normalImage;
+            if ("hit".equals(currentState) && hitImage != null) {
+                targetImage = hitImage;
+            } else if ("attack".equals(currentState) && attackImage != null) {
+                targetImage = attackImage;
+            }
 
-            if (step >= 0) {
-                g.setColor(new Color(255, 80, 80, 255 * (20 - step) / 20));
-                g.setFont(new Font("Dialog", Font.BOLD, 28));
-                g.drawString("-1", 65, 85 - step * 2);
+            if (targetImage != null) {
+                int imgW = targetImage.getWidth(this);
+                int imgH = targetImage.getHeight(this);
+                if (imgW <= 0) imgW = w;
+                if (imgH <= 0) imgH = h;
+
+                int drawW = 200;
+                int drawH = (int) (((double) imgH / imgW) * drawW);
+                if (drawH > 130) {
+                    drawH = 130;
+                    drawW = (int) (((double) imgW / imgH) * drawH);
+                }
+
+                int startX = (getWidth() - drawW) / 2;
+                int startY = (getHeight() - drawH) / 2;
+
+                Composite originalComposite = g2.getComposite();
+                g2.setComposite(AlphaComposite.SrcOver);
+
+                g2.drawImage(targetImage, startX, startY, drawW, drawH, this);
+
+                // 원래 컴포지트 복원
+                g2.setComposite(originalComposite);
+            } else {
+                // 이미지가 없을 때의 기존 사각형 Fallback
+                Color bossColor = new Color(0, 200, 190);
+                if ("common".equals(topicId)) {
+                    bossColor = new Color(240, 160, 40);
+                } else if ("name".equals(topicId)) {
+                    bossColor = new Color(200, 80, 220);
+                }
+
+                g2.setColor(bossColor);
+                g2.fillRect(x, y, w, h);
+
+                g2.setColor(stage == 3 ? Color.RED : Color.WHITE);
+                g2.fillRect(x + 20, y + 20, 22, 22);
+                g2.fillRect(x + w - 42, y + 20, 22, 22);
             }
         }
     }
 
     private void showCard(JPanel cards, String name) {
         ((CardLayout) cards.getLayout()).show(cards, name);
+    }
+
+    public int getPlayerHearts() {
+        return engine.getPlayerHearts();
     }
 }
