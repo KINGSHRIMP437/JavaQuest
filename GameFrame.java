@@ -43,6 +43,7 @@ public class GameFrame extends JFrame {
             }
             openStageMap(selectedTopic);
             cardLayout.show(mainContainer, "stageMap");
+            SoundManager.playBgm(SoundManager.BGM_MAIN); // 전투가 끝나 맵으로 오면 브금 다시
         });
 
         // 2. 컨테이너에 등록
@@ -53,6 +54,10 @@ public class GameFrame extends JFrame {
         add(mainContainer);
         cardLayout.show(mainContainer, "title");
         setVisible(true);
+
+        // 소리: 모든 버튼 클릭음 + 타이틀~스테이지 맵 브금
+        SoundManager.installButtonClickSound();
+        SoundManager.playBgm(SoundManager.BGM_MAIN);
     }
 
     // 별점 계산 및 최고 기록 갱신 메서드

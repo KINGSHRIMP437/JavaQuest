@@ -342,7 +342,11 @@ public class BattleScreen extends JPanel {
             b.setFocusPainted(false);
 
             if (i == 0) {
-                b.addActionListener(e -> startQuiz());
+                b.addActionListener(e -> {
+                    // 인트로 노래는 공격 버튼까지, 이후 퀴즈·탄막 중에는 전투 노래 (이미 나오고 있으면 이어서)
+                    SoundManager.playBgm(SoundManager.BGM_BATTLE);
+                    startQuiz();
+                });
             } else if (i == 3) { // 도망: 패배 처리 없이 스테이지 맵으로
                 b.addActionListener(e -> { if (listener != null) listener.onBattleEnd(false); });
             } else {
@@ -457,6 +461,10 @@ public class BattleScreen extends JPanel {
 
     private void showEnd(boolean win, String text, String reason) {
         won = win;
+        // 승리: 전투 노래는 계속 + bossdeath
+        // 패배: 전투 노래를 잠깐 멈추고 playerdeath → 끝나면 전투 노래 다시 (맵으로 가면 인트로)
+        if (win) SoundManager.playEffect(SoundManager.BOSS_DEATH);
+        else SoundManager.playEffectThenBgm(SoundManager.PLAYER_DEATH, SoundManager.BGM_BATTLE);
         monsterView.setNormalState();
         messageArea.setText(text + (win ? "\n\n[승리!]" : "\n\n[패배]"));
         showCard(centerCards, "msg");
@@ -472,7 +480,11 @@ public class BattleScreen extends JPanel {
         for (int i = 0; i < MAX_HEARTS; i++) {
             hearts[i].setForeground(i < engine.getPlayerHearts() ? Color.RED : Color.GRAY);
         }
-        if (engine.getPlayerHearts() < lastHearts) flashHearts();
+        if (engine.getPlayerHearts() < lastHearts) {
+            flashHearts();
+            // 내 하트가 깎임 (쓰러지는 마지막 피격은 playerdeath만 나도록 건너뜀)
+            if (!engine.isLose()) SoundManager.playEffect(SoundManager.HURT);
+        }
         lastHearts = engine.getPlayerHearts();
     }
 
@@ -587,6 +599,8 @@ public class BattleScreen extends JPanel {
         }
 
         void hit() {
+            // 보스에게 공격이 들어감 (쓰러뜨리는 마지막 일격은 bossdeath만 나도록 건너뜀)
+            if (!engine.isWin()) SoundManager.playEffect(SoundManager.LASER);
             setHitState();
             slashFromRight = !slashFromRight;
             hitStart = System.currentTimeMillis();
