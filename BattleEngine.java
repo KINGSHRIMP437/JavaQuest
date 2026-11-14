@@ -21,8 +21,12 @@ public class BattleEngine {
         if (correct) bossHp--;
     }
 
+    // 테스트용 무적: java -Djavaquest.god=true GameFrame 으로 실행하면 하트가 줄지 않음 (평소 실행에는 영향 없음)
+    private static final boolean GOD_MODE = Boolean.getBoolean("javaquest.god");
+
     // 총알에 맞음: 하트 -1
     public void hitByBullet() {
+        if (GOD_MODE) return;
         playerHearts--;
     }
 
