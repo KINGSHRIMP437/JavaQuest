@@ -1,0 +1,12 @@
+# 주제|스테이지번호|보스이름|HP비율(%)|이미지경로
+coding|1|SyntaxError (Lv.1)|50|images/boss/coding_1.png
+coding|2|InfiniteLoop (Lv.2)|50|images/boss/coding_2.png
+coding|3|NullPointerException (Boss)|70|images/boss/coding_3.png
+
+common|1|동네 지식인 (Lv.1)|50|images/boss/common_1.png
+common|2|상식 백과사전 (Lv.2)|50|images/boss/common_2.png
+common|3|상식의 신 (Boss)|70|images/boss/common_3.png
+
+name|1|초보 조연 (Lv.1)|50|images/boss/name_1.png
+name|2|인기 주연 (Lv.2)|50|images/boss/name_2.png
+name|3|전설의 마스터 (Boss)|70|images/boss/name_3.png
