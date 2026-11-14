@@ -237,6 +237,8 @@ public class DodgeGamePanel extends JPanel {
             Rectangle bulletRect = new Rectangle(b.x, b.y, 30, 15);
             if (playerRect.intersects(bulletRect)) {
                 applyHit();
+                bullets.remove(i);   // 맞은 탄막은 바로 사라짐 (같은 탄막에 다시 맞지 않게, 이슈 #5)
+                continue;
             }
 
             if (b.y > panelHeight - 20 || b.x < 18 || b.x > panelWidth - 20) {
