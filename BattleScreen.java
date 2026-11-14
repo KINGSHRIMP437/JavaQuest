@@ -18,8 +18,8 @@ public class BattleScreen extends JPanel {
     private BattleEngine engine = new BattleEngine();
     private BattleListener listener;
     private Random random = new Random();
-    private List<QuizItem> allQuestions = new ArrayList<>(); 
-    private List<QuizItem> pool = new ArrayList<>();         
+    private List<QuizItem> allQuestions = new ArrayList<>(); // 이번 스테이지 전체 문제
+    private List<QuizItem> pool = new ArrayList<>();         // 아직 맞히지 않은 문제
     private QuizItem current;
     private int stageNo;
     private String currentTopicId;
@@ -52,7 +52,7 @@ public class BattleScreen extends JPanel {
     private int remain;
 
     private DodgeGamePanel dodgeGamePanel;
-    private NameQuizPanel nameQuizPanel; 
+    private NameQuizPanel nameQuizPanel; // 이름 맞추기 주제 전용 이미지 퀴즈
 
     public BattleScreen() {
         setPreferredSize(new Dimension(1050, 800));
@@ -75,10 +75,10 @@ public class BattleScreen extends JPanel {
         this.currentTopicId = topicId;
         allQuestions = new ArrayList<>(questions);
         pool = new ArrayList<>(questions);
-        
+        // 공격 횟수 = 문제 수, 보스 HP = 문제 수 × 스테이지 HP 비율
         int count = questions.size();
         int bossHp = stage.getBossHp(count);
-        if (isNameQuiz()) { 
+        if (isNameQuiz()) { // 이름 맞추기: 무작위 5문제, 보스 HP는 스테이지별 (없으면 기존 4지선다)
             int n = nameQuizPanel.prepare(stageNo);
             if (n > 0) { count = n; bossHp = NameQuizPanel.bossHpFor(stageNo, n); }
         }
@@ -118,15 +118,10 @@ public class BattleScreen extends JPanel {
         centerCards.revalidate();
         centerCards.repaint();
 
+        // 화면 전환 후 레이아웃이 끝난 다음에 시작해야 패널 크기가 0이 아님
         SwingUtilities.invokeLater(() -> {
             dodgeGamePanel.startDodgeGame(currentTopicId, stageNo);
             dodgeGamePanel.requestFocusInWindow();
-
-            System.out.println(
-                "DodgeGamePanel 크기: "
-                + dodgeGamePanel.getWidth() + " x "
-                + dodgeGamePanel.getHeight()
-            );
         });
     }
 
@@ -137,11 +132,13 @@ public class BattleScreen extends JPanel {
 
         String text = hitsTaken > 0 ? "탄막에 " + hitsTaken + "번 맞았다!" : "공격을 모두 피했다!";
         
+        // 탄막 중 하트가 0이 되면 handleRealtimeHit에서 이미 패배 화면을 띄움
         if (engine.isLose()) {
             return;
         }
 
         if (isNameQuiz() && nameQuizPanel.hasQuestions()) {
+            // 이름 맞추기: 결과를 1초 보여 주고 버튼 없이 다음 문제로
             messageArea.setText(text + "\n\n다음 문제!");
             showCard(centerCards, "msg");
             showCard(bottomCards, "wait");
@@ -267,9 +264,12 @@ public class BattleScreen extends JPanel {
         dodgeGamePanel.setPreferredSize(new Dimension(800, 380));
         dodgeGamePanel.setOpaque(true);
 
-        JPanel dodgeWrapper = new JPanel(new BorderLayout());
+        // 탄막 패널은 800x380으로 고정해 가운데 배치 (창 크기에 따라 늘어나면 패턴 난이도가 달라짐)
+        // 최소 크기도 같이 지정: GridBagLayout은 공간이 모자라면 최소 크기로 줄여 패널이 찌그러짐
+        dodgeGamePanel.setMinimumSize(new Dimension(800, 380));
+        JPanel dodgeWrapper = new JPanel(new GridBagLayout());
         dodgeWrapper.setOpaque(false);
-        dodgeWrapper.add(dodgeGamePanel, BorderLayout.CENTER);
+        dodgeWrapper.add(dodgeGamePanel);
 
         centerCards.add(msgPanel, "msg");
         centerCards.add(quizPanel, "quiz");
@@ -343,7 +343,7 @@ public class BattleScreen extends JPanel {
 
             if (i == 0) {
                 b.addActionListener(e -> startQuiz());
-            } else if (i == 3) { 
+            } else if (i == 3) { // 도망: 패배 처리 없이 스테이지 맵으로
                 b.addActionListener(e -> { if (listener != null) listener.onBattleEnd(false); });
             } else {
                 b.addActionListener(e -> messageArea.setText("준비 중인 기능입니다."));
@@ -373,6 +373,8 @@ public class BattleScreen extends JPanel {
         return "name".equals(currentTopicId);
     }
 
+    // 이름 맞추기 결과: 정답이면 보스 HP -1, 오답·시간 초과면 공격 기회만 소모 (하트는 탄막에서만 감소)
+    // 전투가 끝나지 않았으면 결과 글자를 잠깐 띄우고 Enter 없이 탄막으로 → 탄막 후 다음 문제
     private void finishNameQuiz(boolean correct, boolean timeout, NameQuiz quiz) {
         engine.submitAnswer(correct);
         if (correct) monsterView.hit();
@@ -397,10 +399,11 @@ public class BattleScreen extends JPanel {
         }
         if (isNameQuiz() && nameQuizPanel.hasQuestions()) {
             showCard(centerCards, "nameQuiz");
-            showCard(bottomCards, "wait"); 
+            showCard(bottomCards, "wait"); // 퀴즈 중에는 공격 버튼 숨김 (연타 방지)
             nameQuizPanel.startNext();
             return;
         }
+        // 보스 HP가 문제 수보다 많으면 문제를 다 맞힌 뒤 처음부터 다시 출제
         if (pool.isEmpty()) pool = new ArrayList<>(allQuestions);
         if (pool.isEmpty()) return;
         current = pool.get(random.nextInt(pool.size()));
@@ -494,6 +497,22 @@ public class BattleScreen extends JPanel {
         private BufferedImage attackImage;
         private String currentState = "normal"; // "normal", "hit", "attack"
 
+        // ---------- 정답 시 베기 연출 (이슈 #8, 전체 약 0.75초) ----------
+        // 0~110ms 검기가 대각선으로 지나감 → 110ms 번쩍임 → 110~460ms 두 동강으로 벌어졌다 붙음
+        // 110~410ms 좌우 떨림·금빛 베인 자국 / 110~560ms 불꽃 파편 / 110ms~ "-1" 팝업
+        private static final int SLASH_MS = 110, SPLIT_MS = 350, SHAKE_MS = 300, SPARK_MS = 450, TOTAL_MS = 750;
+        private long hitStart = -1;          // 연출 시작 시각(ms), -1이면 연출 없음
+        private boolean slashFromRight;      // 베는 방향: 오른쪽 위→왼쪽 아래 / 왼쪽 위→오른쪽 아래 (맞힐 때마다 번갈아)
+        private double[][] sparks = new double[0][];   // 파편 {시작 x, 시작 y, 속도 x, 속도 y, 크기}
+        private Timer anim = new Timer(16, e -> {      // 약 60fps
+            if (hitStart >= 0 && System.currentTimeMillis() - hitStart > TOTAL_MS) {
+                hitStart = -1;
+                ((Timer) e.getSource()).stop();
+                if ("hit".equals(currentState)) currentState = "normal";   // 연출이 끝나면 평소 모습으로
+            }
+            repaint();
+        });
+
         MonsterView() {
             setOpaque(false);
             setPreferredSize(new Dimension(240, 150));
@@ -569,6 +588,26 @@ public class BattleScreen extends JPanel {
 
         void hit() {
             setHitState();
+            slashFromRight = !slashFromRight;
+            hitStart = System.currentTimeMillis();
+
+            // 파편 10~15개: 베인 선 가운데 근처에서 사방으로 (위쪽으로 조금 더 튀게)
+            double[] u = slashDir();
+            sparks = new double[10 + random.nextInt(6)][];
+            for (int i = 0; i < sparks.length; i++) {
+                double along = (random.nextDouble() - 0.5) * 60;
+                double ang = random.nextDouble() * Math.PI * 2;
+                double speed = 120 + random.nextDouble() * 180;   // px/초
+                sparks[i] = new double[]{getWidth() / 2.0 + u[0] * along, getHeight() / 2.0 + u[1] * along,
+                        Math.cos(ang) * speed, Math.sin(ang) * speed - 80, 2 + random.nextDouble() * 2.5};
+            }
+            anim.restart();
+        }
+
+        // 베는 방향 단위 벡터 (화면 좌표, y는 아래로)
+        private double[] slashDir() {
+            double x = slashFromRight ? -1 : 1, y = 0.75, len = Math.hypot(x, y);
+            return new double[]{x / len, y / len};
         }
 
         @Override
@@ -586,7 +625,111 @@ public class BattleScreen extends JPanel {
             int startX = (panelW - width) / 2;
             int startY = (panelH - height) / 2;
 
-            drawBoss(g2, startX, startY, width, height);
+            long t = hitStart < 0 ? -1 : System.currentTimeMillis() - hitStart;
+            if (t < SLASH_MS) {   // 연출 없음 또는 검기가 지나가는 중: 보스는 그대로
+                drawBoss(g2, startX, startY, width, height);
+                if (t >= 0) drawSlash(g2, t / (double) SLASH_MS);
+                return;
+            }
+            long a = t - SLASH_MS;   // 벤 순간부터 지난 시간
+
+            // 보스를 따로 그려 두고 베인 선 기준 두 조각으로 나눠 그림
+            BufferedImage boss = new BufferedImage(Math.max(1, panelW), Math.max(1, panelH), BufferedImage.TYPE_INT_ARGB);
+            Graphics2D bg = boss.createGraphics();
+            bg.setRenderingHints(g2.getRenderingHints());
+            drawBoss(bg, startX, startY, width, height);
+            bg.dispose();
+            // 번쩍임용 흰 실루엣 (보스가 있는 픽셀만 흰색)
+            BufferedImage white = new BufferedImage(boss.getWidth(), boss.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            Graphics2D wg = white.createGraphics();
+            wg.drawImage(boss, 0, 0, null);
+            wg.setComposite(AlphaComposite.SrcAtop);
+            wg.setColor(Color.WHITE);
+            wg.fillRect(0, 0, white.getWidth(), white.getHeight());
+            wg.dispose();
+
+            double[] u = slashDir();
+            double[] n = {-u[1], u[0]};   // 베인 선의 수직 방향
+            double cx = panelW / 2.0, cy = panelH / 2.0;
+            double split = a < SPLIT_MS ? Math.sin(Math.PI * a / SPLIT_MS) : 0;   // 0 → 1 → 0 (벌어졌다 붙음)
+            int shake = a < SHAKE_MS ? ((a / 30) % 2 == 0 ? 6 : -6) : 0;
+            float flash = Math.max(0f, 1f - a / 120f);
+
+            for (int side = -1; side <= 1; side += 2) {
+                Graphics2D pg = (Graphics2D) g2.create();
+                // 조각은 베인 선을 따라 서로 반대로 미끄러지고, 살짝 바깥으로 벌어짐
+                pg.translate(shake + side * split * (14 * u[0] + 4 * n[0]), side * split * (14 * u[1] + 4 * n[1]));
+                pg.clip(halfPlane(cx, cy, u, n, side));
+                pg.drawImage(boss, 0, 0, null);
+                if (flash > 0) {   // 번쩍임도 같은 변환·클립 안에서 그려 조각과 어긋나지 않음
+                    pg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, flash));
+                    pg.drawImage(white, 0, 0, null);
+                }
+                pg.dispose();
+            }
+
+            // 금빛 베인 자국: 선을 따라 남았다가 사라짐
+            if (a < SHAKE_MS) {
+                float k = 1f - a / (float) SHAKE_MS;
+                g2.setStroke(new BasicStroke(3f * k + 1f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(new Color(255, 215, 90, (int) (230 * k)));
+                g2.drawLine((int) (cx + shake - u[0] * 90), (int) (cy - u[1] * 90), (int) (cx + shake + u[0] * 90), (int) (cy + u[1] * 90));
+            }
+
+            // 불꽃 파편: 중력으로 떨어지며 작아지고 사라짐
+            if (a < SPARK_MS) {
+                double s = a / 1000.0, k = 1 - a / (double) SPARK_MS;
+                for (double[] p : sparks) {
+                    double x = p[0] + p[2] * s, y = p[1] + p[3] * s + 0.5 * 900 * s * s;
+                    double r = p[4] * k + 0.5;
+                    g2.setColor(new Color(255, 200 + (int) (55 * k), 60, (int) (255 * k)));
+                    g2.fill(new java.awt.geom.Ellipse2D.Double(x - r, y - r, r * 2, r * 2));
+                }
+            }
+
+            // "-1": 크게 튀어나왔다가(0.12초) 위로 떠오르며 사라짐
+            double p = Math.min(1.0, a / (double) (TOTAL_MS - SLASH_MS));
+            double scale = a < 120 ? 1.8 - 0.8 * a / 120.0 : 1.0;
+            g2.setFont(new Font("Dialog", Font.BOLD, (int) Math.round(28 * scale)));
+            FontMetrics fm = g2.getFontMetrics();
+            g2.setColor(new Color(255, 80, 80, (int) (255 * (1 - p))));
+            g2.drawString("-1", (int) (cx - fm.stringWidth("-1") / 2.0), (int) (cy - 4 - p * 40));
+        }
+
+        // 검기: 대각선을 따라 지나가는 칼날 (progress 0~1). 흰 심지 + 노란 빛 2겹, 꼬리로 갈수록 가늘고 옅게
+        private void drawSlash(Graphics2D g2, double progress) {
+            double[] u = slashDir();
+            double cx = getWidth() / 2.0, cy = getHeight() / 2.0, reach = 130;
+            double headD = -reach + 2 * reach * progress;   // 칼날 끝 위치 (가운데 기준 거리)
+            double tail = 110;
+            int segs = 12;
+            for (int i = 0; i < segs; i++) {
+                double d0 = headD - tail * (i + 1) / segs, d1 = headD - tail * i / segs;
+                float k = 1f - i / (float) segs;   // 1(칼날 끝) → 0(꼬리)
+                int x0 = (int) (cx + u[0] * d0), y0 = (int) (cy + u[1] * d0);
+                int x1 = (int) (cx + u[0] * d1), y1 = (int) (cy + u[1] * d1);
+                drawStroke(g2, 18 * k, new Color(255, 220, 80, (int) (60 * k)), x0, y0, x1, y1);    // 넓고 옅은 빛
+                drawStroke(g2, 8 * k, new Color(255, 200, 40, (int) (200 * k)), x0, y0, x1, y1);    // 좁고 진한 빛
+                drawStroke(g2, 3 * k, new Color(255, 255, 255, (int) (255 * k)), x0, y0, x1, y1);   // 흰 심지
+            }
+        }
+
+        private void drawStroke(Graphics2D g2, float w, Color c, int x0, int y0, int x1, int y1) {
+            if (w < 0.5f) return;
+            g2.setStroke(new BasicStroke(w, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.setColor(c);
+            g2.drawLine(x0, y0, x1, y1);
+        }
+
+        // 가운데(cx, cy)를 지나는 베인 선의 한쪽 절반 (side = 1 또는 -1)
+        private Polygon halfPlane(double cx, double cy, double[] u, double[] n, int side) {
+            double L = 1000;
+            Polygon poly = new Polygon();
+            poly.addPoint((int) (cx - u[0] * L), (int) (cy - u[1] * L));
+            poly.addPoint((int) (cx + u[0] * L), (int) (cy + u[1] * L));
+            poly.addPoint((int) (cx + u[0] * L + side * n[0] * L), (int) (cy + u[1] * L + side * n[1] * L));
+            poly.addPoint((int) (cx - u[0] * L + side * n[0] * L), (int) (cy - u[1] * L + side * n[1] * L));
+            return poly;
         }
 
         private void drawBoss(Graphics2D g2, int x, int y, int w, int h) {
