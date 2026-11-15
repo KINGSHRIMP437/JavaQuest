@@ -139,19 +139,10 @@ public class BattleScreen extends JPanel {
             return;
         }
 
-        if (isNameQuiz() && nameQuizPanel.hasQuestions()) {
-            // 이름 맞추기: 결과를 1초 보여 주고 버튼 없이 다음 문제로
-            messageArea.setText(text + "\n\n다음 문제!");
-            showCard(centerCards, "msg");
-            showCard(bottomCards, "wait");
-            Timer next = new Timer(1000, e -> startQuiz());
-            next.setRepeats(false);
-            next.start();
-        } else {
-            messageArea.setText(text);
-            showCard(centerCards, "msg");
-            showCard(bottomCards, "cmd");
-        }
+        // 모든 주제 공통: 탄막이 끝나면 공격·도망 버튼 (이름 맞추기도 여기서 도망칠 수 있게)
+        messageArea.setText(text);
+        showCard(centerCards, "msg");
+        showCard(bottomCards, "cmd");
     }
 
     public void debugHit() {
