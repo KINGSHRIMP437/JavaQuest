@@ -535,9 +535,11 @@ public class DodgeGamePanel extends JPanel {
         return false;
     }
 
-    // 포탑 패턴을 쓰는 스테이지: coding 주제에서 FLOWS에 목록이 있는 스테이지 (지금은 1·2스테이지)
+    // 포탑 패턴을 쓰는 스테이지: coding·name 주제에서 FLOWS에 목록이 있는 스테이지
+    // (1스테이지 = 쉬움, 2스테이지 = 중간, 3스테이지 = 어려움. 탄막패턴표.md 참고)
     private boolean useCannonPattern() {
-        return "coding".equals(currentTopicId) && currentStage >= 1 && currentStage <= FLOWS.length;
+        return ("coding".equals(currentTopicId) || "name".equals(currentTopicId))
+                && currentStage >= 1 && currentStage <= FLOWS.length;
     }
 
     // ---------- 패턴 시간 계산 ----------
