@@ -3,6 +3,7 @@ import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -68,6 +69,14 @@ public class DodgeGamePanel extends JPanel {
     private static final double ZONE_OMEGA = 0.45; // 8자 움직임 빠르기 (rad/s): 기준 필드에서 최대 약 160px/s (플레이어 333px/s)
     private static final int ZONE_R = 60;        // 원 반지름 (플레이어 20px)
     private static final int ZONE_BEAMS = 35;    // 원 밖에 동시에 보이는 배경 빔 수 (보기용, 판정은 원 밖 전체)
+    // 4×4 칸 패턴: 필드가 SWEEP처럼 정사각형으로 바뀐 뒤 4×4 칸으로 나눠 생각함 (선은 그리지 않음). 필드가 바뀌므로 플로우 맨 마지막에만
+    // 패턴 한 줄: {시작, GRID/GRIDT/GRIDT1, 0, 라운드 수}
+    private static final int GRID = 13;   // 쉬움: GRIDT와 같은 레이저 포탑이지만 발사할 줄을 깜빡여 보여 줌, 안전 칸 2곳
+    private static final int GRIDT = 14;  // 중간: 벽에서 레이저 포탑이 나와 가로줄·세로줄 단위로 발사 (범위는 안 보여 주고 포탑만), 안전 칸 2곳
+    private static final int GRIDT1 = 15; // 어려움: GRIDT와 같지만 안전 칸 1곳
+    private static final int GRID_N = 4;
+    private static final int GRID_MARGIN = 30;   // 4×4 필드를 위아래로 줄이는 폭 (필드 밖 포탑 자리)
+    private static final int GRID_FADE_MS = 400; // 발사가 끝난 뒤 포탑이 사라지는 시간 (다음 라운드 전까지 여유 있음)
     private static final int BOX_SIDE = 160;       // 줄어든 정사각형 한 변 (세로 4칸 → 칸 40px, 플레이어 20px)
     private static final int BOX_LANES = 4;
     private static final int BOX_SHRINK_MS = 300;  // 필드가 줄어드는 시간 (아주 빠르게)
@@ -91,6 +100,9 @@ public class DodgeGamePanel extends JPanel {
         {900, 450, 1200},  // LANE3H: LANE3F와 같음
         {650, 350, 750},   // RING3: 중반 묶음 간격 0.75초 (충전+발사 1초보다 짧아 앞 묶음과 겹침)
         {ZONE_WARN, 0, ZONE_LEG},   // ZONE: 길이는 eventLength에서 따로 계산
+        {1200, 450, 2000},  // GRID: 예고 1.2초 (정사각형 필드 끝에서 끝까지 약 1초), 2초마다 다음 라운드
+        {1800, 450, 2600},  // GRIDT: 포탑 위치를 보고 안전 칸을 찾을 시간 1.8초
+        {1500, 450, 2300},  // GRIDT1: 1.5초
     };
     private static final int RING_LOCK_MS = 250;   // 원형 포탑이 발사 직전 조준을 고정하는 시간
     private static final int RING_BEAM_W = 34;
@@ -110,7 +122,8 @@ public class DodgeGamePanel extends JPanel {
     }
 
     // 스테이지(난이도)별 플로우 목록: [0] = 1스테이지(쉬움), [1] = 2스테이지(중간), [2] = 3스테이지(어려움)
-    // 적의 턴마다 그 스테이지 목록에서 하나를 무작위로 고른다 (같은 플로우가 두 번 연속 나오지 않게)
+    // 적의 턴마다 그 스테이지 목록을 섞어 하나씩 꺼낸다 (한 바퀴 다 돌기 전엔 같은 플로우가 다시 안 나옴, 바퀴 사이 연속도 없음)
+    // 플로우 수는 7개: 한 전투의 적의 턴(최대 약 9번) 동안 거의 겹치지 않을 만큼
     // 목록이 없는 스테이지는 예전 무작위 탄막·레이저
     private static final Flow[][] FLOWS = {
         {   // ---------- 1스테이지: 쉬움 ----------
@@ -136,6 +149,14 @@ public class DodgeGamePanel extends JPanel {
                 new int[]{5500,  ALL,  0, 7},
                 new int[]{7500,  SEQ,  1, 11},   // 세로 빔 순차, 약 13.7초에 끝남
                 new int[]{13800, RING, 0, 4}),
+            // 플로우 6 (약 20.4초): 글자 탄막 아래로 → 세로 순차 → 4×4 레이저 3번 (맨 마지막)
+            new Flow(false,
+                new int[]{5500,  SEQ,  1, 11},   // 약 11.7초에 끝남 → 그 뒤 2초 동안 필드가 정사각형으로
+                new int[]{13800, GRID, 0, 3}),
+            // 플로우 7 (약 19.4초): 글자 탄막 옆으로 → 상·중·하 사격 3번 → 4×4 레이저 3번 (맨 마지막)
+            new Flow(true,
+                new int[]{6500,  LANE3, 0, 3},   // 약 10.7초에 끝남
+                new int[]{12800, GRID,  0, 3}),
         },
         {   // ---------- 2스테이지: 중간 (쉬움 구성에서 순차 사격 강화(SEQ2)·유도 레이저 강화(RING2) + 작은 상자) ----------
             // 플로우 1 (약 18.4초): 가로 순차가 위·아래에서 동시에 → 유도 레이저가 2개씩 6번 (포탑 12개)
@@ -163,6 +184,14 @@ public class DodgeGamePanel extends JPanel {
                 new int[]{5500,  ALL,   0, 7},
                 new int[]{7500,  SEQ2,  1, 11},   // 약 11.2초에 끝남
                 new int[]{11300, RING2, 0, 8}),
+            // 플로우 6 (약 20.0초): 유도 레이저가 2개씩 4번 → 4×4 포탑 3번 (안전 칸 2곳, 맨 마지막)
+            new Flow(false,
+                new int[]{5500,  RING2, 0, 8},   // 약 9.5초에 끝남
+                new int[]{11600, GRIDT,  0, 3}),
+            // 플로우 7 (약 20.3초): 글자 탄막 옆으로 → 상·중·하 사격 강화 3번 → 4×4 포탑 3번 (맨 마지막)
+            new Flow(true,
+                new int[]{6500,  LANE3F, 0, 3},   // 약 9.8초에 끝남
+                new int[]{11900, GRIDT,   0, 3}),
         },
         {   // ---------- 3스테이지: 어려움 (중간 구성 + 상·중·하 사격 강화(어려움) LANE3H + 회전 빔 강화 SWEEPF) ----------
             new Flow(false,
@@ -190,6 +219,15 @@ public class DodgeGamePanel extends JPanel {
                 new int[]{7500,  SEQ2,  1, 11},   // 세로 순차 강화와 동시에
                 new int[]{7500,  SEQ,   0, 7},    // 가로 순차 (약 11.7초에 끝남)
                 new int[]{11800, RING3, 0, 21, 6}),
+            // 플로우 6 (약 22.7초): 상·중·하 사격 강화(어려움) 3번 → 유도 레이저 (어려움) 4개 → 묶음 2번 → 4×4 포탑 3번 (안전 칸 1곳)
+            new Flow(false,
+                new int[]{5500,  LANE3H, 0, 3},       // 약 9.1초에 끝남
+                new int[]{9200,  RING3,  0, 10, 4},   // 약 13.1초에 끝남
+                new int[]{15200, GRIDT1,  0, 3}),
+            // 플로우 7 (약 20.6초): 글자 탄막 옆으로 → 유도 레이저 (어려움) 6개 → 묶음 2번 → 4×4 포탑 3번 (안전 칸 1곳)
+            new Flow(true,
+                new int[]{6500,  RING3, 0, 12, 6},    // 약 11.0초에 끝남
+                new int[]{13100, GRIDT1, 0, 3}),
         },
     };
     private static final Color BEAM_COLOR = new Color(0, 230, 220);
@@ -199,6 +237,7 @@ public class DodgeGamePanel extends JPanel {
 
     int flow = -1;                      // 이번 적의 턴의 플로우 번호 (-1 = 아직 없음)
     int flowStage = 0;                  // flow를 고른 스테이지 (스테이지가 바뀌면 직전 기록 무시)
+    private final List<Integer> flowBag = new ArrayList<>();   // 이번 바퀴에 아직 안 나온 플로우
     int[][] script = FLOWS[0][0].events;   // 이번 적의 턴에 쓰는 패턴 목록
     int patternEndMs;                   // 이번 스크립트가 끝나는 시각
     boolean sideSnow, snowFromLeft;     // 글자 탄막이 옆으로 오는지, 왼쪽에서 오는지
@@ -257,21 +296,27 @@ public class DodgeGamePanel extends JPanel {
         if (gameLoopTimer != null) gameLoopTimer.stop();
         if (phaseTimer != null) phaseTimer.stop();
 
-        // 이번 턴 플로우 무작위 선택 (직전 플로우는 제외). 플로우가 없는 스테이지는 예전 무작위 탄막
+        // 이번 턴 플로우 선택: 섞은 주머니에서 하나씩 꺼냄 → 그 스테이지 플로우를 한 번씩 다 본 뒤에야 다시 나옴
+        // (주머니를 새로 채울 때 직전 플로우가 맨 앞이면 뒤로 보내 연속 방지). 플로우가 없는 스테이지는 예전 무작위 탄막
         if (useCannonPattern()) {
             Flow[] flows = FLOWS[stageNo - 1];
-            if (stageNo != flowStage || flow >= flows.length) flow = -1;   // 스테이지가 바뀌면 직전 기록 무시
+            if (stageNo != flowStage) { flowBag.clear(); flow = -1; }   // 스테이지가 바뀌면 처음부터
             flowStage = stageNo;
-            if (flow < 0 || flows.length == 1) {
-                flow = rand.nextInt(flows.length);
-            } else {
-                int next = rand.nextInt(flows.length - 1);   // 직전 플로우를 뺀 나머지 중에서
-                flow = next >= flow ? next + 1 : next;
+            if (flowBag.isEmpty()) {
+                for (int i = 0; i < flows.length; i++) flowBag.add(i);
+                Collections.shuffle(flowBag, rand);
+                if (flowBag.size() > 1 && flowBag.get(0) == flow) flowBag.add(flowBag.remove(0));
             }
+            flow = flowBag.remove(0);
             // 테스트용: -Djavaquest.flow=N 이면 항상 N번 플로우 (1부터)
             int forced = Integer.getInteger("javaquest.flow", 0);
             if (forced >= 1 && forced <= flows.length) flow = forced - 1;
             script = flows[flow].events;
+            // 테스트용: -Djavaquest.gridOnly=true 이면 그 스테이지의 4×4 칸 패턴만 (글자 탄막 뒤 5.5초에 시작)
+            if (Boolean.getBoolean("javaquest.gridOnly")) {
+                for (int[] e : flows[flows.length - 1].events)
+                    if (isGrid(e[1])) script = new int[][]{{5500, e[1], e[2], e[3]}};
+            }
             sideSnow = flows[flow].sideSnow;
             snowFromLeft = rand.nextBoolean();
             patternEndMs = computePatternEnd(script);
@@ -330,12 +375,15 @@ public class DodgeGamePanel extends JPanel {
         Rectangle full = new Rectangle(20, 20, w - 40, h - 40);
         if (!useCannonPattern()) return full;
         for (int[] e : script) {
-            if (e[1] == SWEEP || e[1] == SWEEPF) {   // 직사각형 → 세로 길이와 같은 정사각형으로, 천천히 시작해서 천천히 멈춤
+            if (e[1] == SWEEP || e[1] == SWEEPF || isGrid(e[1])) {   // 직사각형 → 세로 길이와 같은 정사각형으로, 천천히 시작해서 천천히 멈춤
                 double p = Math.max(0, Math.min(1, (elapsed - (e[0] - MORPH_MS)) / (double) MORPH_MS));
                 p = p * p * (3 - 2 * p);
-                int side = Math.min(full.width, full.height);
+                int inset = isGrid(e[1]) ? GRID_MARGIN : 0;   // 4×4: 위아래도 줄여 필드 밖에 포탑 자리를 만듦
+                int side = Math.min(full.width, full.height) - 2 * inset;
                 int x = (int) Math.round(full.x + (w / 2.0 - side / 2.0 - full.x) * p);
-                return new Rectangle(x, full.y, (int) Math.round(full.width + (side - full.width) * p), full.height);
+                int y = (int) Math.round(full.y + inset * p);
+                return new Rectangle(x, y, (int) Math.round(full.width + (side - full.width) * p),
+                                     (int) Math.round(full.height + (side - full.height) * p));
             }
             if (e[1] != BOX) continue;
             long shrinkStart = e[0] - BOX_SHRINK_MS - BOX_READY_MS;
@@ -380,6 +428,7 @@ public class DodgeGamePanel extends JPanel {
             ringAim[i] = new double[lanes];
             if (script[i][1] == LANE3 || script[i][1] == LANE3F || script[i][1] == LANE3H) laneShots[i] = makeLaneShots(lanes, 3);
             if (script[i][1] == BOX) laneShots[i] = makeLaneShots(lanes, BOX_LANES);
+            if (isGrid(script[i][1])) laneShots[i] = makeGridShots(script[i][1], lanes, rand);
         }
         pressedKeys.clear();
     }
@@ -538,7 +587,8 @@ public class DodgeGamePanel extends JPanel {
         if (e[1] == ZONE) return ZONE_WARN + e[3] * ZONE_LEG + FADE_MS;
         if (e[1] == RING3) return (int) (SLIDE_MS + ring3Offset(e[4], e[3] - 1) + tm[0] + tm[1] + FADE_MS);
         int vDelay = e[1] == LANE3H && rounds <= 3 ? LANE3H_V_DELAY : 0;   // 마지막이 한 줄 발사면 늦게 나가는 세로 빔까지
-        return (int) (SLIDE_MS + roundOffset(e[1], rounds - 1) + shotCharge(e[1], rounds - 1) + vDelay + tm[1] + FADE_MS);
+        int fade = isGrid(e[1]) ? GRID_FADE_MS : FADE_MS;                   // 4×4 포탑은 더 천천히 사라짐
+        return (int) (SLIDE_MS + roundOffset(e[1], rounds - 1) + shotCharge(e[1], rounds - 1) + vDelay + tm[1] + fade);
     }
 
     // order번째 등장이 첫 등장보다 몇 ms 늦게 충전을 시작하는지. 보통은 order × 간격,
@@ -629,7 +679,8 @@ public class DodgeGamePanel extends JPanel {
         Composite oldComposite = g2.getComposite();
         Shape oldClip = g2.getClip();
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-        g2.clipRect(left, top, right - left, bottom - top);   // 포탑과 빔이 테두리 밖으로 안 나가게
+        int pad = isGrid(type) ? 45 : 0;   // 4×4 포탑은 필드 밖에 그림 (빔은 drawLaneTurret에서 필드로 잘림)
+        g2.clipRect(left - pad, top - pad, right - left + pad * 2, bottom - top + pad * 2);   // 포탑과 빔이 테두리 밖으로 안 나가게
 
         double flash = 0;
         if (type == ZONE) {
@@ -646,6 +697,8 @@ public class DodgeGamePanel extends JPanel {
                     ? drawSweepBeam(g2, type, ev, lane, chargeT, fireT, playerRect, w, h)
                     : type == LANE3 || type == LANE3F || type == LANE3H || type == BOX
                     ? drawLaneShot(g2, type, ev, lane, chargeT, fireT, playerRect, left, top, right, bottom)
+                    : isGrid(type)
+                    ? drawGridRound(g2, type, laneShots[ev][lane], chargeT, fireT, playerRect, fr)
                     : drawLaneTurret(g2, type, script[ev][2] == 1, false, lane, lanes, chargeT, fireT, slide,
                                      playerRect, left, top, right, bottom);
             flash = Math.max(flash, f);
@@ -703,7 +756,9 @@ public class DodgeGamePanel extends JPanel {
         int laneStart = (vertical ? left : top) + (int) Math.round(lane * laneSize) + 3;
         int size = (int) Math.round(laneSize) - 6;   // 빔 사이 틈(6px)은 플레이어(20px)보다 좁아 못 빠져나감
         int center = laneStart + size / 2;
-        int edge = (int) Math.round(-50 + 68 * slide);   // 필드 벽에서 포탑까지 (-50 → 18, 벽 밖에서 미끄러져 들어옴)
+        boolean outside = isGrid(type);   // 4×4 포탑은 필드 밖 벽에 붙어 있음
+        int edge = (int) Math.round(outside ? -60 + 36 * slide     // 벽 밖 -60 → -24 (포탑 몸통이 필드 밖에 남음)
+                                            : -50 + 68 * slide);   // 필드 벽에서 포탑까지 (-50 → 18, 벽 밖에서 미끄러져 들어옴)
         int cannonPos = flip ? (vertical ? bottom : right) - edge : (vertical ? top : left) + edge;   // 반대쪽 벽은 대칭 위치
         Rectangle laneRect = vertical
                 ? new Rectangle(laneStart, top, size, bottom - top)
@@ -711,8 +766,8 @@ public class DodgeGamePanel extends JPanel {
         // 빔 방향: 아래/오른쪽, flip이면 위/왼쪽
         double angle = vertical ? (flip ? -Math.PI / 2 : Math.PI / 2) : (flip ? Math.PI : 0);
 
-        // 충전 중: 빔이 지나갈 자리를 깜빡이며 예고 (BOX는 예고 없이 포탑만 보여 줌)
-        if (type != BOX && chargeT >= 0 && fireT < 0) {
+        // 충전 중: 빔이 지나갈 자리를 깜빡이며 예고 (BOX·GRIDT·GRIDT1은 예고 없이 포탑만 보여 줌)
+        if (type != BOX && type != GRIDT && type != GRIDT1 && chargeT >= 0 && fireT < 0) {
             boolean blink = (chargeT / 90) % 2 == 0;
             g2.setColor(new Color(0, 220, 210, blink ? 70 : 30));
             g2.fill(laneRect);
@@ -723,7 +778,10 @@ public class DodgeGamePanel extends JPanel {
             int muzzle = cannonPos + (flip ? -16 : 16);   // 포구: 포탑에서 빔 방향으로 16px
             int mx = vertical ? center : muzzle;
             int my = vertical ? muzzle : center;
+            Shape savedClip = g2.getClip();
+            if (outside) g2.clipRect(left, top, right - left, bottom - top);   // 빔은 필드 안에만
             double k = drawBeamFx(g2, mx, my, angle, size, fireT, fireLen);
+            g2.setClip(savedClip);
             if (k > 0.5 && playerRect.intersects(laneRect)) applyHit();
             if (fireT < 120) flash = (type == ALL ? 100 : 30) * (1 - fireT / 120.0);
         }
@@ -868,6 +926,60 @@ public class DodgeGamePanel extends JPanel {
         g2.setStroke(new BasicStroke(1));
     }
 
+    static boolean isGrid(int type) {
+        return type == GRID || type == GRIDT || type == GRIDT1;
+    }
+
+    // 4×4 칸 패턴의 라운드별 데이터 (칸 번호 = 줄 × 4 + 칸)
+    // {쏘는 가로줄 비트, 쏘는 세로줄 비트, 오른쪽 벽에서 쏘는 가로줄 비트, 아래 벽에서 쏘는 세로줄 비트}
+    //   안전 칸 = 안 쏘는 가로줄 × 안 쏘는 세로줄. GRIDT1은 가로 3·세로 3 → 1곳, GRID·GRIDT는 가로 3·세로 2(반은 반대로) → 2곳
+    static int[][] makeGridShots(int type, int rounds, Random rnd) {
+        int[][] r = new int[rounds][];
+        for (int i = 0; i < rounds; i++) {
+            List<Integer> rows = new ArrayList<>(List.of(0, 1, 2, 3)), cols = new ArrayList<>(List.of(0, 1, 2, 3));
+            Collections.shuffle(rows, rnd);
+            Collections.shuffle(cols, rnd);
+            int nRows = 3, nCols = type == GRIDT1 ? 3 : 2;
+            if (type != GRIDT1 && rnd.nextBoolean()) { nRows = 2; nCols = 3; }
+            int rowMask = 0, colMask = 0;
+            for (int k = 0; k < nRows; k++) rowMask |= 1 << rows.get(k);
+            for (int k = 0; k < nCols; k++) colMask |= 1 << cols.get(k);
+            r[i] = new int[]{rowMask, colMask, rnd.nextInt(1 << GRID_N) & rowMask, rnd.nextInt(1 << GRID_N) & colMask};
+        }
+        return r;
+    }
+
+    // 이 칸이 이번 라운드의 범위인지
+    static boolean gridDanger(int type, int[] data, int cell) {
+        return (data[0] >> (cell / GRID_N) & 1) != 0 || (data[1] >> (cell % GRID_N) & 1) != 0;
+    }
+
+    // 4×4 칸 패턴 한 라운드: 필드 밖 벽에서 레이저 포탑이 나와 충전하다 그 가로줄·세로줄 전체로 발사. 반환값 = 화면 번쩍임 세기
+    // 가로줄 포탑은 왼쪽/오른쪽 벽, 세로줄 포탑은 위/아래 벽에서 (판정은 drawLaneTurret이 줄마다)
+    // GRID는 줄 깜빡임으로 범위를 보여 줌 (가로·세로가 겹치는 칸은 두 번 칠해져 더 진함), GRIDT·GRIDT1은 포탑만 보임
+    private double drawGridRound(Graphics2D g2, int type, int[] data, long chargeT, long fireT,
+                                 Rectangle playerRect, Rectangle fr) {
+        long goneT = fireT - TIMING[type][1];   // 발사가 끝난 뒤 지난 시간: 그동안 포탑이 서서히 투명해짐
+        if (chargeT < 0 || goneT >= GRID_FADE_MS) return 0;
+        double slide = 1 - Math.pow(1 - Math.min(1.0, chargeT / (double) SLIDE_MS), 3);
+        Composite savedComposite = g2.getComposite();
+        if (goneT > 0) {
+            float a = 1f - goneT / (float) GRID_FADE_MS;
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a * a));   // 처음엔 빠르게, 끝은 부드럽게
+        }
+        double flash = 0;
+        for (int l = 0; l < GRID_N; l++) {
+            if ((data[0] >> l & 1) != 0)
+                flash = Math.max(flash, drawLaneTurret(g2, type, false, (data[2] >> l & 1) != 0, l, GRID_N, chargeT, fireT,
+                        slide, playerRect, fr.x, fr.y, fr.x + fr.width, fr.y + fr.height));
+            if ((data[1] >> l & 1) != 0)
+                flash = Math.max(flash, drawLaneTurret(g2, type, true, (data[3] >> l & 1) != 0, l, GRID_N, chargeT, fireT,
+                        slide, playerRect, fr.x, fr.y, fr.x + fr.width, fr.y + fr.height));
+        }
+        g2.setComposite(savedComposite);
+        return flash;
+    }
+
     // 회전 빔: shot번째 빔은 필드 가운데를 지나고, 한 발마다 45도씩 같은 방향으로 돈다
     private double drawSweepBeam(Graphics2D g2, int type, int ev, int shot, long chargeT, long fireT,
                                  Rectangle playerRect, int w, int h) {
@@ -916,12 +1028,16 @@ public class DodgeGamePanel extends JPanel {
         int beamW = (int) Math.round(size * k * wobble);
         int coreW = (int) Math.round(beamW * 0.45);
 
+        // 끝날 때는 가늘어지면서 투명해짐 (부드럽게 감속: 처음엔 천천히, 끝에서 빠르게 사라짐)
+        double fall = Math.min(160, fireLen * 0.4);
+        float fade = fireT > fireLen - fall ? (float) Math.pow(k, 0.6) : 1f;
+
         java.awt.geom.AffineTransform saved = g2.getTransform();
         g2.translate(mx, my);
         g2.rotate(angle);
-        fillBeamLayer(g2, beamW + 8, new Color(BEAM_COLOR.getRed(), BEAM_COLOR.getGreen(), BEAM_COLOR.getBlue(), 60));
-        fillBeamLayer(g2, beamW, new Color(BEAM_COLOR.getRed(), BEAM_COLOR.getGreen(), BEAM_COLOR.getBlue(), 190));
-        fillBeamLayer(g2, coreW, Color.WHITE);
+        fillBeamLayer(g2, beamW + 8, new Color(BEAM_COLOR.getRed(), BEAM_COLOR.getGreen(), BEAM_COLOR.getBlue(), (int) (60 * fade)));
+        fillBeamLayer(g2, beamW, new Color(BEAM_COLOR.getRed(), BEAM_COLOR.getGreen(), BEAM_COLOR.getBlue(), (int) (190 * fade)));
+        fillBeamLayer(g2, coreW, new Color(255, 255, 255, (int) (255 * fade)));
         g2.setTransform(saved);
         return k;
     }
@@ -964,7 +1080,7 @@ public class DodgeGamePanel extends JPanel {
 
     // 빔이 발사된 직후 잠깐 화면을 흔든다 (일제 사격이 가장 세게)
     private int[] shakeOffset(long elapsed) {
-        double[] power = {6, 3, 4, 4, 3, 5, 4, 4, 5, 5, 4, 5, 0};   // ALL, SEQ, RING, LANE3, BOX, RING2, SEQ2, LANE3F, SWEEP, SWEEPF, LANE3H, RING3, ZONE
+        double[] power = {6, 3, 4, 4, 3, 5, 4, 4, 5, 5, 4, 5, 0, 4, 5, 5};   // ALL, SEQ, RING, LANE3, BOX, RING2, SEQ2, LANE3F, SWEEP, SWEEPF, LANE3H, RING3, ZONE, GRID, GRIDT, GRIDT1
         double m = 0;
         for (int ev = 0; ev < script.length; ev++) {
             int type = script[ev][1];

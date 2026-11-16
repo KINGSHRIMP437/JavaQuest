@@ -8,7 +8,9 @@ public class BackendTest {
         for (String topic : new String[]{"coding", "common", "name"})
             for (int s = 1; s <= 3; s++) {
                 assert sm.findStage(topic, s) != null : topic + " " + s + " 보스 없음";
-                assert qm.findByStage(topic, s).size() == 10 : topic + " " + s + " 문제는 10개";
+                // 이름 맞추기 문제는 namequiz/name_quiz.txt에 있음 (NameQuizTest가 검사)
+                int expected = topic.equals("name") ? 0 : 10;
+                assert qm.findByStage(topic, s).size() == expected : topic + " " + s + " 문제는 " + expected + "개";
             }
         assert sm.findStage("CODING", 3).getBossName().equals("NullPointerException (Boss)");
         assert sm.findStage("coding", 4) == null;
