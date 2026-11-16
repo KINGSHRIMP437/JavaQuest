@@ -238,6 +238,7 @@ public class DodgeGamePanel extends JPanel {
     int flow = -1;                      // 이번 적의 턴의 플로우 번호 (-1 = 아직 없음)
     int flowStage = 0;                  // flow를 고른 스테이지 (스테이지가 바뀌면 직전 기록 무시)
     private final List<Integer> flowBag = new ArrayList<>();   // 이번 바퀴에 아직 안 나온 플로우
+    private boolean flowBagDone = false;  // 모든 플로우를 한 번씩 다 보여줬는지 (그 뒤로는 완전 무작위)
     int[][] script = FLOWS[0][0].events;   // 이번 적의 턴에 쓰는 패턴 목록
     int patternEndMs;                   // 이번 스크립트가 끝나는 시각
     boolean sideSnow, snowFromLeft;     // 글자 탄막이 옆으로 오는지, 왼쪽에서 오는지
@@ -296,18 +297,22 @@ public class DodgeGamePanel extends JPanel {
         if (gameLoopTimer != null) gameLoopTimer.stop();
         if (phaseTimer != null) phaseTimer.stop();
 
-        // 이번 턴 플로우 선택: 섞은 주머니에서 하나씩 꺼냄 → 그 스테이지 플로우를 한 번씩 다 본 뒤에야 다시 나옴
-        // (주머니를 새로 채울 때 직전 플로우가 맨 앞이면 뒤로 보내 연속 방지). 플로우가 없는 스테이지는 예전 무작위 탄막
+        // 이번 턴 플로우 선택: 첫 바퀴는 섞은 주머니에서 하나씩 꺼내 모든 플로우를 한 번씩 보여주고,
+        // 다 나온 뒤로는 완전 무작위. 플로우가 없는 스테이지는 예전 무작위 탄막
         if (useCannonPattern()) {
             Flow[] flows = FLOWS[stageNo - 1];
-            if (stageNo != flowStage) { flowBag.clear(); flow = -1; }   // 스테이지가 바뀌면 처음부터
+            if (stageNo != flowStage) { flowBag.clear(); flowBagDone = false; flow = -1; }   // 스테이지가 바뀌면 처음부터
             flowStage = stageNo;
-            if (flowBag.isEmpty()) {
-                for (int i = 0; i < flows.length; i++) flowBag.add(i);
-                Collections.shuffle(flowBag, rand);
-                if (flowBag.size() > 1 && flowBag.get(0) == flow) flowBag.add(flowBag.remove(0));
+            if (flowBagDone) {
+                flow = rand.nextInt(flows.length);   // 전부 한 번씩 나온 뒤로는 완전 무작위 (연속 중복도 허용)
+            } else {
+                if (flowBag.isEmpty()) {             // 첫 바퀴: 안 나온 플로우 중에서만 무작위
+                    for (int i = 0; i < flows.length; i++) flowBag.add(i);
+                    Collections.shuffle(flowBag, rand);
+                }
+                flow = flowBag.remove(0);
+                if (flowBag.isEmpty()) flowBagDone = true;
             }
-            flow = flowBag.remove(0);
             // 테스트용: -Djavaquest.flow=N 이면 항상 N번 플로우 (1부터)
             int forced = Integer.getInteger("javaquest.flow", 0);
             if (forced >= 1 && forced <= flows.length) flow = forced - 1;
