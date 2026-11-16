@@ -52,6 +52,7 @@ public class BattleScreen extends JPanel {
     private int remain;
 
     private DodgeGamePanel dodgeGamePanel;
+    private JLabel dodgeStatus = new JLabel(" ");   // 탄막 필드 아래 상태 글자 (주제·스테이지·피격 수)
     private NameQuizPanel nameQuizPanel; // 이름 맞추기 주제 전용 이미지 퀴즈
 
     public BattleScreen() {
@@ -113,7 +114,7 @@ public class BattleScreen extends JPanel {
         messageArea.setText("적의 턴! 방향키로 탄막을 피하세요!");
 
         showCard(centerCards, "dodge");
-        showCard(bottomCards, "wait");
+        showCard(bottomCards, "dodge");
 
         centerCards.revalidate();
         centerCards.repaint();
@@ -122,6 +123,7 @@ public class BattleScreen extends JPanel {
         SwingUtilities.invokeLater(() -> {
             dodgeGamePanel.startDodgeGame(currentTopicId, stageNo);
             dodgeGamePanel.requestFocusInWindow();
+            dodgeStatus.setText(dodgeGamePanel.getStatusText());
         });
     }
 
@@ -137,19 +139,10 @@ public class BattleScreen extends JPanel {
             return;
         }
 
-        if (isNameQuiz() && nameQuizPanel.hasQuestions()) {
-            // 이름 맞추기: 결과를 1초 보여 주고 버튼 없이 다음 문제로
-            messageArea.setText(text + "\n\n다음 문제!");
-            showCard(centerCards, "msg");
-            showCard(bottomCards, "wait");
-            Timer next = new Timer(1000, e -> startQuiz());
-            next.setRepeats(false);
-            next.start();
-        } else {
-            messageArea.setText(text);
-            showCard(centerCards, "msg");
-            showCard(bottomCards, "cmd");
-        }
+        // 모든 주제 공통: 탄막이 끝나면 공격·도망 버튼 (이름 맞추기도 여기서 도망칠 수 있게)
+        messageArea.setText(text);
+        showCard(centerCards, "msg");
+        showCard(bottomCards, "cmd");
     }
 
     public void debugHit() {
@@ -264,10 +257,21 @@ public class BattleScreen extends JPanel {
         dodgeGamePanel.setPreferredSize(new Dimension(800, 380));
         dodgeGamePanel.setOpaque(true);
 
-        // 탄막 패널은 800x380으로 고정해 가운데 배치 (창 크기에 따라 늘어나면 패턴 난이도가 달라짐)
-        // 최소 크기도 같이 지정: GridBagLayout은 공간이 모자라면 최소 크기로 줄여 패널이 찌그러짐
-        dodgeGamePanel.setMinimumSize(new Dimension(800, 380));
-        JPanel dodgeWrapper = new JPanel(new GridBagLayout());
+        // 탄막 패널은 최대 800x380, 공간이 모자라면 남은 크기에 맞춰 줄여 가운데 배치
+        // - 창이 크다고 늘리지 않음: 필드가 커지면 패턴 난이도가 달라짐
+        // - 창이 작으면 줄임: 고정 크기로 두면 필드 아랫부분(테두리)이 잘려 보임 (패턴은 패널 크기 기준으로 그려짐)
+        JPanel dodgeWrapper = new JPanel(null) {
+            @Override
+            public void doLayout() {
+                int w = Math.min(800, getWidth()), h = Math.min(380, getHeight());
+                dodgeGamePanel.setBounds((getWidth() - w) / 2, (getHeight() - h) / 2, w, h);
+            }
+
+            @Override
+            public Dimension getPreferredSize() {
+                return new Dimension(800, 380);
+            }
+        };
         dodgeWrapper.setOpaque(false);
         dodgeWrapper.add(dodgeGamePanel);
 
@@ -283,7 +287,8 @@ public class BattleScreen extends JPanel {
 
     private void handleRealtimeHit() {
         engine.hitByBullet();
-        updateStatus(); 
+        updateStatus();
+        dodgeStatus.setText(dodgeGamePanel.getStatusText());
 
         if (engine.isLose()) {
             dodgeGamePanel.stopDodgeGame();
@@ -316,6 +321,14 @@ public class BattleScreen extends JPanel {
         JPanel waitPanel = new JPanel();
         waitPanel.setOpaque(false);
         bottomCards.add(waitPanel, "wait");
+
+        // 적의 턴: 명령 버튼 자리에 주제·스테이지·피격 수 표시 (탄막 필드 밖)
+        JPanel dodgeStatusPanel = new JPanel(new BorderLayout());
+        dodgeStatusPanel.setOpaque(false);
+        dodgeStatus.setForeground(Color.YELLOW);
+        dodgeStatus.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+        dodgeStatusPanel.add(dodgeStatus, BorderLayout.WEST);
+        bottomCards.add(dodgeStatusPanel, "dodge");
 
         bottomCards.add(makeSingleButtonPanel("확인", () -> {
             if (listener != null) listener.onBattleEnd(won);
