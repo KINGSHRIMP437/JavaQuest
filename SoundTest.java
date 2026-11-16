@@ -28,7 +28,11 @@ public class SoundTest {
         SoundManager.playEffect(SoundManager.HURT);
         assert SoundManager.isEffectLoaded(SoundManager.HURT) : "피격음 파일을 읽어야 함";
         SoundManager.playEffect(SoundManager.LASER);
-        assert SoundManager.isEffectLoaded(SoundManager.LASER) : "공격음 파일을 읽어야 함";
+        assert SoundManager.isEffectLoaded(SoundManager.LASER) : "빔 발사음 파일을 읽어야 함";
+        SoundManager.playEffect(SoundManager.SLASH_SWING);
+        assert SoundManager.isEffectLoaded(SoundManager.SLASH_SWING) : "베기 휘두름 소리 파일을 읽어야 함";
+        SoundManager.playEffect(SoundManager.SLASH_HIT);
+        assert SoundManager.isEffectLoaded(SoundManager.SLASH_HIT) : "베기 타격 소리 파일을 읽어야 함";
         SoundManager.playEffect(SoundManager.BOSS_DEATH);
         assert SoundManager.isEffectLoaded(SoundManager.BOSS_DEATH) : "보스 사망음 파일을 읽어야 함";
         SoundManager.playEffect(SoundManager.PLAYER_DEATH);

@@ -538,7 +538,10 @@ public class BattleScreen extends JPanel {
             repaint();
         });
 
+        private final Timer slashHitSound = new Timer(SLASH_MS, e -> SoundManager.playEffect(SoundManager.SLASH_HIT));
+
         MonsterView() {
+            slashHitSound.setRepeats(false);
             setOpaque(false);
             setPreferredSize(new Dimension(240, 150));
         }
@@ -613,7 +616,11 @@ public class BattleScreen extends JPanel {
 
         void hit() {
             // 보스에게 공격이 들어감 (쓰러뜨리는 마지막 일격은 bossdeath만 나도록 건너뜀)
-            if (!engine.isWin()) SoundManager.playEffect(SoundManager.LASER);
+            // 휘두름 "슉"은 검기 시작(0ms), 맞는 "챙/퍽"은 두 동강 나는 순간(SLASH_MS)에 맞춤
+            if (!engine.isWin()) {
+                SoundManager.playEffect(SoundManager.SLASH_SWING);
+                slashHitSound.restart();
+            }
             setHitState();
             slashFromRight = !slashFromRight;
             hitStart = System.currentTimeMillis();

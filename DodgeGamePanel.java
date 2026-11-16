@@ -352,6 +352,12 @@ public class DodgeGamePanel extends JPanel {
         return full;
     }
 
+    // 빔 발사음: 직전 화면 이후에 발사가 시작된 빔이 있으면 이번 화면에서 한 번만 재생
+    // (모든 패턴의 빔이 drawBeamFx를 거치므로 패턴이 바뀌어도 그대로 동작, 일제 사격도 소리는 한 번)
+    private long prevFrameElapsed = -1;
+    private long frameGap;
+    private boolean beamFiredThisFrame;
+
     public void resetGame() {
         playerX = 400;
         playerY = 180;
@@ -365,6 +371,8 @@ public class DodgeGamePanel extends JPanel {
         laserTimer = 0;
         isLaserCharging = false;
         isLaserFiring = false;
+        prevFrameElapsed = -1;
+        beamFiredThisFrame = false;
         int n = script.length;
         safeLanes = new int[n][];
         reversed = new boolean[n];
@@ -395,6 +403,7 @@ public class DodgeGamePanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         long elapsed = System.currentTimeMillis() - startTime;
+        frameGap = elapsed - prevFrameElapsed;   // 같은 시각에 다시 그려지면 0 → 소리 중복 없음
         if (useCannonPattern()) {   // 빔 발사 순간 화면 흔들림
             int[] shake = shakeOffset(elapsed);
             g2.translate(shake[0], shake[1]);
@@ -483,6 +492,10 @@ public class DodgeGamePanel extends JPanel {
         } else {
             drawRandomLaser(g, playerRect, panelWidth, panelHeight);
         }
+
+        if (beamFiredThisFrame) SoundManager.playEffect(SoundManager.LASER);
+        beamFiredThisFrame = false;
+        prevFrameElapsed = elapsed;
 
         drawPlayer(g);
     }
@@ -911,6 +924,7 @@ public class DodgeGamePanel extends JPanel {
 
     // 빔 이펙트 (모든 패턴 공통): 순간 확 펼쳐졌다가 가늘어지며 사라짐. 반환값 = 현재 굵기 비율(0~1)
     private double drawBeamFx(Graphics2D g2, double mx, double my, double angle, int size, long fireT, int fireLen) {
+        if (fireT >= 0 && fireT < frameGap) beamFiredThisFrame = true;   // 이 빔은 직전 화면 이후에 막 발사됨
         double k = beamStrength(fireT, fireLen);
         double wobble = 1 + 0.08 * Math.sin(fireT / 18.0);   // 빔 굵기가 살짝 떨림
         int beamW = (int) Math.round(size * k * wobble);
@@ -1015,6 +1029,7 @@ public class DodgeGamePanel extends JPanel {
                 isLaserCharging = false;
                 isLaserFiring = true;
                 fireCounter = 0;
+                SoundManager.playEffect(SoundManager.LASER);
             }
         }
 
