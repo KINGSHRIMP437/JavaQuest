@@ -25,16 +25,8 @@ public class DodgeGamePanel extends JPanel {
     
     int currentStage = 1;
     String currentTopicId = "coding";
-    
-    int laserTimer = 0;
-    boolean isHorizontalLaser = false;
-    int laserPos = 0;
-    boolean isLaserCharging = false;
-    boolean isLaserFiring = false;
-    int chargeCounter = 0;
-    int fireCounter = 0;
 
-    // 포탑 빔 패턴 (테스트: coding 1스테이지)
+    // 포탑 빔 패턴 (모든 주제 공통. 주제별로 다른 패턴은 추후 FLOWS를 주제마다 나눠 추가)
     // 포탑 한 번: 등장(미끄러져 들어옴) → 충전(빛·예고선) → 발사(빔·번쩍임·흔들림) → 사라짐
     private static final int ALL = 0;    // 일제 사격: 모든 줄이 동시에 발사, 한 줄만 안전
     private static final int SEQ = 1;    // 순차 사격: 한 줄씩 차례로 발사 (방향은 매번 무작위)
@@ -410,9 +402,6 @@ public class DodgeGamePanel extends JPanel {
         isFlashing = false;
         if (hitFlashTimer != null) hitFlashTimer.stop();
         if (phaseTimer != null) phaseTimer.stop();
-        laserTimer = 0;
-        isLaserCharging = false;
-        isLaserFiring = false;
         int n = script.length;
         safeLanes = new int[n][];
         reversed = new boolean[n];
@@ -529,8 +518,6 @@ public class DodgeGamePanel extends JPanel {
                 if (t < 0 || t >= eventLength(script[ev])) continue;
                 drawEvent(g2, ev, t, playerRect, panelWidth, panelHeight);
             }
-        } else {
-            drawRandomLaser(g, playerRect, panelWidth, panelHeight);
         }
 
         drawPlayer(g);
@@ -571,9 +558,9 @@ public class DodgeGamePanel extends JPanel {
         return false;
     }
 
-    // 포탑 패턴을 쓰는 스테이지: coding 주제에서 FLOWS에 목록이 있는 스테이지 (지금은 1·2스테이지)
+    // 포탑 패턴을 쓰는 스테이지: FLOWS에 목록이 있는 스테이지 (모든 주제, 1~3스테이지)
     private boolean useCannonPattern() {
-        return "coding".equals(currentTopicId) && currentStage >= 1 && currentStage <= FLOWS.length;
+        return currentStage >= 1 && currentStage <= FLOWS.length;
     }
 
     // ---------- 패턴 시간 계산 ----------
@@ -1092,70 +1079,6 @@ public class DodgeGamePanel extends JPanel {
         }
         int s = (int) Math.round(m);
         return new int[]{rand.nextInt(2 * s + 1) - s, rand.nextInt(2 * s + 1) - s};
-    }
-
-    // 기존 패턴: 무작위 위치에 레이저 1개
-    private void drawRandomLaser(Graphics g, Rectangle playerRect, int panelWidth, int panelHeight) {
-        int laserInterval = Math.max(25, 55 - (currentStage * 8));
-        laserTimer++;
-        if (laserTimer >= laserInterval && !isLaserCharging && !isLaserFiring) {
-            isLaserCharging = true;
-            chargeCounter = 0;
-            isHorizontalLaser = rand.nextBoolean();
-            
-            if (isHorizontalLaser) {
-                laserPos = 30 + rand.nextInt(Math.max(30, panelHeight - 60));
-            } else {
-                laserPos = 30 + rand.nextInt(Math.max(30, panelWidth - 60));
-            }
-        }
-
-        if (isLaserCharging) {
-            chargeCounter++;
-            g.setColor(Color.YELLOW);
-            Graphics2D g2d = (Graphics2D) g;
-            float[] dashPattern = {6, 6};
-            g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
-
-            if (isHorizontalLaser) {
-                g2d.drawLine(20, laserPos, panelWidth - 20, laserPos);
-            } else {
-                g2d.drawLine(laserPos, 20, laserPos, panelHeight - 20);
-            }
-            g2d.setStroke(new BasicStroke(1));
-
-            g.setFont(new Font("맑은 고딕", Font.BOLD, 13));
-            g.drawString("! 충전 중...", isHorizontalLaser ? 30 : Math.max(20, laserPos - 30), isHorizontalLaser ? Math.max(20, laserPos - 8) : 38);
-
-            if (chargeCounter >= 25) {
-                isLaserCharging = false;
-                isLaserFiring = true;
-                fireCounter = 0;
-            }
-        }
-
-        if (isLaserFiring) {
-            fireCounter++;
-            g.setColor(new Color(255, 50, 50, 200));
-
-            Rectangle laserRect;
-            if (isHorizontalLaser) {
-                g.fillRect(20, laserPos - 10, panelWidth - 40, 20);
-                laserRect = new Rectangle(20, laserPos - 10, panelWidth - 40, 20);
-            } else {
-                g.fillRect(laserPos - 10, 20, 20, panelHeight - 40);
-                laserRect = new Rectangle(laserPos - 10, 20, 20, panelHeight - 40);
-            }
-
-            if (playerRect.intersects(laserRect)) {
-                applyHit();
-            }
-
-            if (fireCounter >= 15) {
-                isLaserFiring = false;
-                laserTimer = 0;
-            }
-        }
     }
 
     private void drawPlayer(Graphics g) {
