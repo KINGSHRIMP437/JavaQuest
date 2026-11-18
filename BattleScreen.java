@@ -14,6 +14,7 @@ public class BattleScreen extends JPanel {
     private static final Color BORDER_COLOR = new Color(0, 200, 190);
     private static final int MAX_HEARTS = 3;
     private static final int QUIZ_SECONDS = 15;
+    private static final int WIN_DELAY_MS = 1000;   // 마지막 일격 베기 연출(약 0.75초)이 끝난 뒤 클리어 창으로
 
     private BattleEngine engine = new BattleEngine();
     private BattleListener listener;
@@ -36,6 +37,7 @@ public class BattleScreen extends JPanel {
     private JProgressBar timeBar = new JProgressBar();
 
     private JLabel stageLabel = new JLabel("", SwingConstants.LEFT);
+    private JLabel stageStarsLabel = new JLabel("", SwingConstants.LEFT); // 추가: 스테이지별 별 표시 라벨
     private JLabel turnLabel = new JLabel("", SwingConstants.RIGHT);
     private JLabel bossNameLabel = new JLabel("", SwingConstants.CENTER);
     private JProgressBar bossHpBar = new JProgressBar();
@@ -69,7 +71,7 @@ public class BattleScreen extends JPanel {
         flashTimer = new Timer(100, e -> flashStep());
     }
 
-    public void startBattle(String topicName, Stage stage, List<QuizItem> questions) {
+    public void startBattle(String topicName, Stage stage, List<QuizItem> questions, java.util.Map<String, Integer> stageBestStars) {
         String topicId = stage.getTopic();
         String bossName = stage.getBossName();
         this.stageNo = stage.getStageNo();
@@ -88,6 +90,7 @@ public class BattleScreen extends JPanel {
         lastHearts = engine.getPlayerHearts();
 
         stageLabel.setText("STAGE " + stageNo + " · " + topicName);
+        stageStarsLabel.setText(formatStageStars(topicId, stageBestStars)); // 별점 텍스트 갱신
         bossNameLabel.setText(bossName);
         bossHpBar.setMaximum(engine.getBossMaxHp());
         bossHpBar.setValue(engine.getBossHp());
@@ -102,6 +105,21 @@ public class BattleScreen extends JPanel {
 
         revalidate();
         repaint();
+    }
+    
+    private String formatStageStars(String topicId, java.util.Map<String, Integer> bestStars) {
+        if (bestStars == null) return "";
+        StringBuilder sb = new StringBuilder("[ ");
+        for (int s = 1; s <= 3; s++) {
+            int stars = bestStars.getOrDefault(topicId + "_" + s, 0);
+            sb.append("S").append(s).append(": ");
+            for (int i = 0; i < 3; i++) {
+                sb.append(i < stars ? "★" : "☆");
+            }
+            if (s < 3) sb.append("  ");
+        }
+        sb.append(" ]");
+        return sb.toString();
     }
 
     public void setBattleListener(BattleListener l) {
@@ -157,13 +175,24 @@ public class BattleScreen extends JPanel {
 
         JPanel headerTop = new JPanel(new BorderLayout());
         headerTop.setOpaque(false);
+
+        // 좌측 상단: 스테이지 텍스트 + 스테이지별 별점 묶음 패널
+        JPanel leftHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        leftHeader.setOpaque(false);
+
         stageLabel.setForeground(Color.YELLOW);
         stageLabel.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+
+        stageStarsLabel.setForeground(new Color(255, 215, 0)); // 금색
+        stageStarsLabel.setFont(new Font("Dialog", Font.BOLD, 16));
+
+        leftHeader.add(stageLabel);
+        leftHeader.add(stageStarsLabel);
 
         turnLabel.setForeground(Color.WHITE);
         turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
 
-        headerTop.add(stageLabel, BorderLayout.WEST);
+        headerTop.add(leftHeader, BorderLayout.WEST); // 좌측 상단에 배치
         headerTop.add(turnLabel, BorderLayout.EAST);
         topPanel.add(headerTop);
         topPanel.add(Box.createVerticalStrut(10));
@@ -474,12 +503,25 @@ public class BattleScreen extends JPanel {
 
     private void showEnd(boolean win, String text, String reason) {
         won = win;
-        // 승리: 전투 노래는 계속 + bossdeath
+        if (win) {
+            // 승리: 정답·해설과 "확인" 버튼 없이, 보스 베는 연출이 끝나면 맵으로 → 클리어 창(또는 축하 화면)
+            // 연출 동안에는 보스와 처치 메시지만 보여 주고 버튼은 숨김 (선택지 연타로 두 번 끝나지 않게)
+            // 소리는 마지막 일격의 베기 효과음만 (bossdeath는 쓰지 않음)
+            messageArea.setText("* " + engine.getBossName() + "을(를) 쓰러뜨렸다!");
+            showCard(centerCards, "msg");
+            showCard(bottomCards, "wait");
+            Timer toClear = new Timer(WIN_DELAY_MS, e -> {
+                monsterView.setNormalState();
+                if (listener != null) listener.onBattleEnd(true);
+            });
+            toClear.setRepeats(false);
+            toClear.start();
+            return;
+        }
         // 패배: 전투 노래를 잠깐 멈추고 playerdeath → 끝나면 전투 노래 다시 (맵으로 가면 인트로)
-        if (win) SoundManager.playEffect(SoundManager.BOSS_DEATH);
-        else SoundManager.playEffectThenBgm(SoundManager.PLAYER_DEATH, SoundManager.BGM_BATTLE);
+        SoundManager.playEffectThenBgm(SoundManager.PLAYER_DEATH, SoundManager.BGM_BATTLE);
         monsterView.setNormalState();
-        messageArea.setText(text + (win ? "\n\n[승리!]" : "\n\n[패배]"));
+        messageArea.setText(text + "\n\n[패배]");
         showCard(centerCards, "msg");
         showCard(bottomCards, "end");
     }
@@ -615,12 +657,10 @@ public class BattleScreen extends JPanel {
         }
 
         void hit() {
-            // 보스에게 공격이 들어감 (쓰러뜨리는 마지막 일격은 bossdeath만 나도록 건너뜀)
-            // 휘두름 "슉"은 검기 시작(0ms), 맞는 "챙/퍽"은 두 동강 나는 순간(SLASH_MS)에 맞춤
-            if (!engine.isWin()) {
-                SoundManager.playEffect(SoundManager.SLASH_SWING);
-                slashHitSound.restart();
-            }
+            // 보스에게 공격이 들어감. 휘두름 "슉"은 검기 시작(0ms), 맞는 "챙/퍽"은 두 동강 나는 순간(SLASH_MS)에 맞춤
+            // 마지막 일격도 평소와 같은 소리 (bossdeath는 showEnd에서 "슉"이 끝난 뒤에 냄)
+            SoundManager.playEffect(SoundManager.SLASH_SWING);
+            slashHitSound.restart();
             setHitState();
             slashFromRight = !slashFromRight;
             hitStart = System.currentTimeMillis();
