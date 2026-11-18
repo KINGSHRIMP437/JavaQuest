@@ -12,6 +12,7 @@ public class GameFrame extends JFrame {
     private TopicSelectScreen topicSelectScreen;
     private StageMapScreen stageMapScreen;
     private BattleScreen battleScreen;
+    private TopicClearScreen topicClearScreen;
 
     private String selectedTopic = "coding";
     private int currentPlayingStage = 1; // 현재 플레이 중인 스테이지 번호 추적
@@ -26,30 +27,49 @@ public class GameFrame extends JFrame {
         setLocationRelativeTo(null);
 
         // 1. 화면 인스턴스 생성
-        titleScreen = new TitleScreen(() -> cardLayout.show(mainContainer, "topicSelect"));
-        
-        topicSelectScreen = new TopicSelectScreen(topicId -> {
+        titleScreen = new TitleScreen(this::showTopicSelect);
+
+        topicSelectScreen = new TopicSelectScreen(stageBestStars, topicId -> {
             selectedTopic = topicId;
             openStageMap(selectedTopic);
         });
 
         battleScreen = new BattleScreen();
         
+        topicClearScreen = new TopicClearScreen(
+            () -> openStageMap(selectedTopic),
+            this::showTopicSelect);
+
         // 전투 종료 리스너 설정 (승리 시 별점 기록 및 맵 갱신)
         battleScreen.setBattleListener(win -> {
-            if (win) {
-                int remainingHearts = battleScreen.getPlayerHearts();
-                recordStageResult(selectedTopic, currentPlayingStage, win, remainingHearts);
+            if (!win) { // 패배·도망: 창 없이 맵으로
+                openStageMap(selectedTopic);
+                SoundManager.playBgm(SoundManager.BGM_MAIN); // 전투가 끝나 맵으로 오면 브금 다시
+                return;
+            }
+            int stageNo = currentPlayingStage;
+            boolean firstClear = !stageBestStars.containsKey(selectedTopic + "_" + stageNo);
+            int stars = recordStageResult(selectedTopic, stageNo, true, battleScreen.getPlayerHearts());
+
+            if (isTopicAllCleared(selectedTopic)) {
+                // 마지막 스테이지까지 모두 클리어: 클리어 창 대신 축하 화면 (브금 멈추고 팡파르 → 끝나면 메인 브금)
+                showTopicClear(selectedTopic);
+                SoundManager.playEffectThenBgm(SoundManager.TOPIC_CLEAR, SoundManager.BGM_MAIN);
+                return;
             }
             openStageMap(selectedTopic);
-            cardLayout.show(mainContainer, "stageMap");
-            SoundManager.playBgm(SoundManager.BGM_MAIN); // 전투가 끝나 맵으로 오면 브금 다시
+            // 이번에 처음 깼으면 다음 스테이지가 새로 열림 (#17)
+            int unlocked = firstClear && stageNo < 3 ? stageNo + 1 : 0;
+            StageClearPopup.show(getRootPane(), stageNo, stars, unlocked);
+            // 클리어음이 나는 동안은 브금 없음 → 끝나면 메인 브금
+            SoundManager.playEffectThenBgm(SoundManager.STAGE_CLEAR, SoundManager.BGM_MAIN);
         });
 
         // 2. 컨테이너에 등록
         mainContainer.add(titleScreen, "title");
         mainContainer.add(topicSelectScreen, "topicSelect");
         mainContainer.add(battleScreen, "battle");
+        mainContainer.add(topicClearScreen, "topicClear");
 
         add(mainContainer);
         cardLayout.show(mainContainer, "title");
@@ -60,9 +80,9 @@ public class GameFrame extends JFrame {
         SoundManager.playBgm(SoundManager.BGM_MAIN);
     }
 
-    // 별점 계산 및 최고 기록 갱신 메서드
-    public void recordStageResult(String topicId, int stageNo, boolean won, int remainingHearts) {
-        if (!won) return; // 패배하거나 도망치면 기록하지 않음
+    // 별점 계산 및 최고 기록 갱신 메서드. 이번 판의 별점을 반환 (패배·도망이면 0)
+    public int recordStageResult(String topicId, int stageNo, boolean won, int remainingHearts) {
+        if (!won) return 0; // 패배하거나 도망치면 기록하지 않음
 
         int stars = 1;
         if (remainingHearts >= 3) {
@@ -78,6 +98,29 @@ public class GameFrame extends JFrame {
         if (stars > currentBest) {
             stageBestStars.put(key, stars); // 최고 기록보다 높을 때만 갱신
         }
+        return stars;
+    }
+
+    // 주제 선택 화면: 클리어 기록을 반영해 다시 그린 뒤 표시
+    private void showTopicSelect() {
+        topicSelectScreen.refresh();
+        cardLayout.show(mainContainer, "topicSelect");
+    }
+
+    // 주제의 STAGE 1~3을 모두 클리어했는지
+    private boolean isTopicAllCleared(String topicId) {
+        for (int i = 1; i <= 3; i++) {
+            if (!stageBestStars.containsKey(topicId + "_" + i)) return false;
+        }
+        return true;
+    }
+
+    // 주제 올클리어 축하 화면 (스테이지별 최고 별점 요약)
+    private void showTopicClear(String topicId) {
+        int[] stars = new int[3];
+        for (int i = 0; i < 3; i++) stars[i] = stageBestStars.getOrDefault(topicId + "_" + (i + 1), 0);
+        topicClearScreen.showResult(getTopicTitle(topicId), stars);
+        cardLayout.show(mainContainer, "topicClear");
     }
 
     private void openStageMap(String topicId) {
@@ -86,16 +129,18 @@ public class GameFrame extends JFrame {
         }
 
         stageMapScreen = new StageMapScreen(topicId, stageBestStars, stageNo -> {
-            currentPlayingStage = stageNo; // 어떤 스테이지를 선택했는지 저장
+            currentPlayingStage = stageNo; 
             
             List<QuizItem> questions = DataLoader.loadQuestions("questions.txt", topicId, stageNo);
             Stage stage = DataLoader.loadStage("monsters.txt", topicId, stageNo);
 
-            battleScreen.startBattle(getTopicTitle(topicId), stage, questions);
+            // stageBestStars를 함께 전달하도록 수정
+            battleScreen.startBattle(getTopicTitle(topicId), stage, questions, stageBestStars);
             cardLayout.show(mainContainer, "battle");
         }, () -> {
             cardLayout.show(mainContainer, "topicSelect");
         });
+
 
         mainContainer.add(stageMapScreen, "stageMap");
         mainContainer.revalidate();
