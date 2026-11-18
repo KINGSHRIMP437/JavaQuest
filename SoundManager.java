@@ -16,8 +16,9 @@ public class SoundManager {
     public static final String LASER = "sounds/laserShoot.wav";  // 탄막 빔이 발사될 때
     public static final String SLASH_SWING = "sounds/swordswing.wav"; // 정답: 검기가 지나갈 때 "슉"
     public static final String SLASH_HIT = "sounds/slashHit.wav";     // 정답: 보스가 두 동강 날 때 "챙/퍽"
-    public static final String BOSS_DEATH = "sounds/bossdeath.wav";     // 보스를 쓰러뜨림 (승리)
     public static final String PLAYER_DEATH = "sounds/playerdeath.wav"; // 내가 쓰러짐 (패배)
+    public static final String STAGE_CLEAR = "sounds/stageClear.wav";   // 스테이지 클리어 창 (코드로 합성한 소리)
+    public static final String TOPIC_CLEAR = "sounds/topicClear.wav";   // 주제 올클리어 축하 화면 (코드로 합성한 소리)
 
     private static final float BGM_VOLUME_DB = -8f;   // 브금은 원본보다 조금 작게 (0 = 원본)
     private static final float EFFECT_VOLUME_DB = 0f;
