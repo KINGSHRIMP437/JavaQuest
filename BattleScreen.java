@@ -61,7 +61,7 @@ public class BattleScreen extends JPanel {
         setPreferredSize(new Dimension(1050, 800));
         setBackground(BG_COLOR);
         setLayout(new BorderLayout(20, 20));
-        setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
+        setBorder(BorderFactory.createEmptyBorder(12, 20, 12, 20));
 
         initTopArea();
         initCenterArea();
@@ -182,19 +182,19 @@ public class BattleScreen extends JPanel {
         headerTop.add(leftHeader, BorderLayout.WEST);
         headerTop.add(turnLabel, BorderLayout.EAST);
         topPanel.add(headerTop);
-        topPanel.add(Box.createVerticalStrut(10));
+        topPanel.add(Box.createVerticalStrut(4));
 
         JPanel monsterCenter = new JPanel(new FlowLayout(FlowLayout.CENTER));
         monsterCenter.setOpaque(false);
         monsterCenter.add(monsterView);
         topPanel.add(monsterCenter);
-        topPanel.add(Box.createVerticalStrut(8));
+        topPanel.add(Box.createVerticalStrut(4));
 
         bossNameLabel.setForeground(Color.WHITE);
         bossNameLabel.setFont(new Font("맑은 고딕", Font.BOLD, 20));
         bossNameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         topPanel.add(bossNameLabel);
-        topPanel.add(Box.createVerticalStrut(6));
+        topPanel.add(Box.createVerticalStrut(4));
 
         bossHpBar.setStringPainted(true);
         bossHpBar.setForeground(new Color(220, 50, 50));
@@ -210,7 +210,7 @@ public class BattleScreen extends JPanel {
 
     private void initCenterArea() {
         centerCards.setOpaque(false);
-        centerCards.setPreferredSize(new Dimension(900, 400));
+        centerCards.setPreferredSize(new Dimension(900, 480));
 
         msgPanel = new JPanel(new BorderLayout());
         msgPanel.setOpaque(false);
@@ -219,7 +219,7 @@ public class BattleScreen extends JPanel {
         messageArea.setEditable(false);
         messageArea.setLineWrap(true);
         messageArea.setWrapStyleWord(true);
-        messageArea.setFont(new Font("맑은 고딕", Font.PLAIN, 20));
+        messageArea.setFont(new Font("맑은 고딕", Font.PLAIN, 24));
         messageArea.setForeground(Color.WHITE);
         messageArea.setBackground(new Color(25, 30, 50));
         messageArea.setBorder(BorderFactory.createCompoundBorder(
@@ -243,7 +243,7 @@ public class BattleScreen extends JPanel {
         questionText.setEditable(false);
         questionText.setLineWrap(true);
         questionText.setWrapStyleWord(true);
-        questionText.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+        questionText.setFont(new Font("맑은 고딕", Font.BOLD, 26));
         questionText.setForeground(Color.WHITE);
         questionText.setBackground(new Color(20, 25, 45));
         questionText.setBorder(BorderFactory.createEmptyBorder(20, 20, 15, 20));
@@ -257,7 +257,8 @@ public class BattleScreen extends JPanel {
             choiceBtns[i] = new JButton();
             choiceBtns[i].setBackground(new Color(25, 30, 50));
             choiceBtns[i].setForeground(Color.WHITE);
-            choiceBtns[i].setFont(new Font("맑은 고딕", Font.PLAIN, 16));
+            choiceBtns[i].setFont(new Font("맑은 고딕", Font.PLAIN, 22));
+            choiceBtns[i].setPreferredSize(new Dimension(0, 110));
             choiceBtns[i].setHorizontalAlignment(SwingConstants.LEFT);
             choiceBtns[i].setBorder(new LineBorder(Color.GRAY, 1));
             choiceBtns[i].addActionListener(e -> answer(idx));
@@ -325,11 +326,11 @@ public class BattleScreen extends JPanel {
             heartRow.add(hearts[i]);
         }
         bottomWrap.add(heartRow);
-        bottomWrap.add(Box.createVerticalStrut(8));
+        bottomWrap.add(Box.createVerticalStrut(4));
 
         bottomCards.setOpaque(false);
         bottomCards.setAlignmentX(Component.LEFT_ALIGNMENT);
-        bottomCards.setPreferredSize(new Dimension(900, 60));
+        bottomCards.setPreferredSize(new Dimension(900, 80));
         
         bottomCards.add(makeCommandPanel(), "cmd");
         bottomCards.add(makeSingleButtonPanel("계속", () -> startEnemyTurn()), "continue");
@@ -355,18 +356,18 @@ public class BattleScreen extends JPanel {
     }
 
     private JPanel makeCommandPanel() {
-        JPanel p = new JPanel(new GridLayout(1, 4, 15, 0));
+        JPanel p = new JPanel(new GridLayout(1, 3, 15, 0));
         p.setOpaque(false);
-        String[] names = {"◆ 공격", "Q 디버그", "아이템", "→ 도망"};
-        for (int i = 0; i < 4; i++) {
+        String[] names = {"◆ 공격", "아이템", "→ 도망"};
+        for (int i = 0; i < names.length; i++) {
             final String name = names[i];
             JButton b = new JButton(name);
             b.setBackground(new Color(25, 30, 50));
             b.setForeground(Color.WHITE);
-            b.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+            b.setFont(new Font("맑은 고딕", Font.BOLD, 24));
             b.setOpaque(true);
             b.setContentAreaFilled(true);
-            b.setPreferredSize(new Dimension(0, 50));
+            b.setPreferredSize(new Dimension(0, 70));
             b.setBorder(new LineBorder(i == 0 ? BORDER_COLOR : Color.GRAY, i == 0 ? 3 : 2));
             b.setFocusPainted(false);
 
@@ -376,7 +377,7 @@ public class BattleScreen extends JPanel {
                     SoundManager.playBgm(SoundManager.BGM_BATTLE);
                     startQuiz();
                 });
-            } else if (i == 3) { // 도망: 패배 처리 없이 스테이지 맵으로
+            } else if (i == 2) { // 도망: 패배 처리 없이 스테이지 맵으로
                 b.addActionListener(e -> { if (listener != null) listener.onBattleEnd(false); });
             } else {
                 b.addActionListener(e -> messageArea.setText("준비 중인 기능입니다."));
@@ -444,7 +445,10 @@ public class BattleScreen extends JPanel {
         questionText.setText("Q. " + current.text + "\n");
         for (int i = 0; i < 4; i++) {
             char prefix = (char) ('A' + i);
-            choiceBtns[i].setText("  " + prefix + ". " + current.choices[i]);
+            // HTML 라벨로 넣어 긴 보기는 버튼 폭에서 줄바꿈 (<, > 같은 기호는 이스케이프)
+            String choice = String.valueOf(current.choices[i])
+                    .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+            choiceBtns[i].setText("<html><body style='width:390px'>&nbsp;" + prefix + ". " + choice + "</body></html>");
         }
 
         remain = QUIZ_SECONDS * 10;
@@ -575,7 +579,7 @@ public class BattleScreen extends JPanel {
         MonsterView() {
             slashHitSound.setRepeats(false);
             setOpaque(false);
-            setPreferredSize(new Dimension(240, 150));
+            setPreferredSize(new Dimension(180, 110));
         }
 
         // Stage에서 이미지 경로를 받아 로드하도록 매개변수 추가
