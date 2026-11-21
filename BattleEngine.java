@@ -42,6 +42,11 @@ public class BattleEngine {
     }
 
     public int getPlayerHearts() { return playerHearts; }
+
+    // 남은 하트로 별점: 5개 → 별 3개, 4·3개 → 별 2개, 2·1개 → 별 1개 (0개 = 패배)
+    public static int starsFor(int hearts) {
+        return hearts >= 5 ? 3 : hearts >= 3 ? 2 : hearts >= 1 ? 1 : 0;
+    }
     public int getAttacksLeft() { return attacksLeft; }
     public String getBossName() { return bossName; }
     public int getBossHp() { return bossHp; }

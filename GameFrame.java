@@ -84,15 +84,7 @@ public class GameFrame extends JFrame {
     public int recordStageResult(String topicId, int stageNo, boolean won, int remainingHearts) {
         if (!won) return 0; // 패배하거나 도망치면 기록하지 않음
 
-        // 하트 5개 기준: 5개 → 별 3개, 4·3개 → 별 2개, 2·1개 → 별 1개
-        int stars;
-        if (remainingHearts >= 5) {
-            stars = 3;
-        } else if (remainingHearts >= 3) {
-            stars = 2;
-        } else {
-            stars = 1;
-        }
+        int stars = BattleEngine.starsFor(remainingHearts);
 
         String key = topicId + "_" + stageNo;
         int currentBest = stageBestStars.getOrDefault(key, 0);
@@ -130,16 +122,14 @@ public class GameFrame extends JFrame {
         }
 
         stageMapScreen = new StageMapScreen(topicId, stageBestStars, stageNo -> {
-            currentPlayingStage = stageNo; 
+            currentPlayingStage = stageNo; // 어떤 스테이지를 선택했는지 저장
             
             List<QuizItem> questions = DataLoader.loadQuestions("questions.txt", topicId, stageNo);
             Stage stage = DataLoader.loadStage("monsters.txt", topicId, stageNo);
 
-            // stageBestStars를 함께 전달하도록 수정
-            battleScreen.startBattle(getTopicTitle(topicId), stage, questions, stageBestStars);
+            battleScreen.startBattle(getTopicTitle(topicId), stage, questions);
             cardLayout.show(mainContainer, "battle");
         }, this::showTopicSelect);
-
 
         mainContainer.add(stageMapScreen, "stageMap");
         mainContainer.revalidate();
