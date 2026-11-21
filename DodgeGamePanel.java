@@ -107,127 +107,108 @@ public class DodgeGamePanel extends JPanel {
     private static final int RING_LOCK_MS = 250;   // 원형 포탑이 발사 직전 조준을 고정하는 시간
     private static final int RING_BEAM_W = 34;
     private static final int BEAM_LEN = 1500;
-    // 패턴 플로우 하나: 글자 탄막 방향 + 패턴 목록
+    // 패턴 플로우 하나: 글자 탄막(없음·아래로·옆으로) + 패턴 목록
     // 패턴 한 줄: {시작 시각(ms), 패턴, 방향(1=세로 빔, 0=가로 빔), 포탑 수(LANE3·BOX는 발사 횟수), [ALL만: 비울 줄 수(생략하면 1, 최대 2)]}
-    // 글자 탄막은 0~3초에 나오고, 다 지나갈 때까지 쉰 뒤 레이저 시작 (아래로 ≈5.5초, 옆으로 ≈6.5초부터)
-    // 필드가 바뀌는 패턴(BOX)은 플로우의 맨 마지막에만 둔다
+    // 글자 탄막은 0~3초에 나오고, 다 지나갈 때까지 쉰 뒤 레이저 시작 (아래로 5.5초, 옆으로 6.5초부터)
+    // 글자 탄막이 없는 플로우는 0.5초부터 바로 레이저
+    // 필드가 바뀌는 패턴(BOX·SWEEP·ZONE·4×4)은 플로우의 맨 마지막에만 둔다
+    private static final int NO_SNOW = 0, DOWN = 1, SIDE = 2;
     private static class Flow {
-        final boolean sideSnow;   // true = 글자 탄막이 옆으로 (왼쪽→오른쪽 또는 오른쪽→왼쪽)
+        final int snow;   // 글자 탄막: NO_SNOW = 없음, DOWN = 위에서 아래로, SIDE = 옆으로 (왼쪽→오른쪽 또는 반대)
         final int[][] events;
 
-        Flow(boolean sideSnow, int[]... events) {
-            this.sideSnow = sideSnow;
+        Flow(int snow, int[]... events) {
+            this.snow = snow;
             this.events = events;
         }
     }
 
     // 스테이지(난이도)별 플로우 목록: [0] = 1스테이지(쉬움), [1] = 2스테이지(중간), [2] = 3스테이지(어려움)
-    // 적의 턴마다 그 스테이지 목록을 섞어 하나씩 꺼낸다 (한 바퀴 다 돌기 전엔 같은 플로우가 다시 안 나옴, 바퀴 사이 연속도 없음)
-    // 플로우 수는 7개: 한 전투의 적의 턴(최대 약 9번) 동안 거의 겹치지 않을 만큼
+    // 교수님 피드백(상대 턴이 너무 김): 플로우 길이를 예전(13~23초)의 절반쯤(7~11초)으로, 글자 탄막은 7개 중 2개에만
+    // 첫 바퀴는 안 나온 플로우 중에서 무작위, 7개가 다 나온 뒤로는 완전 무작위
     // 목록이 없는 스테이지는 예전 무작위 탄막·레이저
     private static final Flow[][] FLOWS = {
         {   // ---------- 1스테이지: 쉬움 ----------
-            // 플로우 1 (약 20.6초): 글자 탄막 아래로 → 일제 사격 ×2 → 가로 순차 → 유도 레이저
-            new Flow(false,
-                new int[]{5500,  ALL,  1, 11, 2},   // 위쪽 포탑 일제 사격 (11줄 중 2줄 비움: 필드가 넓어 한 줄로는 못 피함)
-                new int[]{7500,  ALL,  0, 7},    // 왼쪽 포탑 일제 사격
-                new int[]{9500,  SEQ,  0, 7},    // 가로 빔 순차: 위→아래 또는 아래→위
-                new int[]{13900, RING, 0, 6}),   // 원형 포탑 6개가 하나씩 나와 조준 사격 후 사라짐
-            // 플로우 2 (약 14.6초): 글자 탄막 옆으로 → 상·중·하 사격 6번 (앞 3번은 한 줄, 뒤 3번은 두 줄 동시)
-            new Flow(true,
-                new int[]{6500,  LANE3, 0, 6}),
-            // 플로우 3 (약 14.6초): 글자 탄막 아래로 → 상·중·하 사격 → 유도 레이저
-            new Flow(false,
-                new int[]{5500,  LANE3, 0, 3},
-                new int[]{9900,  RING,  0, 4}),
-            // 플로우 4 (약 13.1초): 글자 탄막 옆으로 → 위쪽 일제 사격 → 가로 순차
-            new Flow(true,
-                new int[]{6500,  ALL, 1, 11, 2},   // 위쪽 일제 사격, 2줄 비움
-                new int[]{8600,  SEQ, 0, 7}),
-            // 플로우 5 (약 18.5초): 글자 탄막 아래로 → 왼쪽 일제 사격 → 세로 순차(왼쪽→오른쪽 또는 반대) → 유도 레이저
-            new Flow(false,
-                new int[]{5500,  ALL,  0, 7},
-                new int[]{7500,  SEQ,  1, 11},   // 세로 빔 순차, 약 13.7초에 끝남
-                new int[]{13800, RING, 0, 4}),
-            // 플로우 6 (약 20.4초): 글자 탄막 아래로 → 세로 순차 → 4×4 레이저 3번 (맨 마지막)
-            new Flow(false,
-                new int[]{5500,  SEQ,  1, 11},   // 약 11.7초에 끝남 → 그 뒤 2초 동안 필드가 정사각형으로
-                new int[]{13800, GRID, 0, 3}),
-            // 플로우 7 (약 19.4초): 글자 탄막 옆으로 → 상·중·하 사격 3번 → 4×4 레이저 3번 (맨 마지막)
-            new Flow(true,
-                new int[]{6500,  LANE3, 0, 3},   // 약 10.7초에 끝남
-                new int[]{12800, GRID,  0, 3}),
+            // 플로우 1 (약 9.0초): 위쪽 일제 사격 → 왼쪽 일제 사격 → 가로 순차
+            new Flow(NO_SNOW,
+                new int[]{500,  ALL, 1, 11, 2},   // 11줄 중 2줄 비움 (필드가 넓어 한 줄로는 못 피함)
+                new int[]{2500, ALL, 0, 7},
+                new int[]{4500, SEQ, 0, 7}),      // 위→아래 또는 아래→위
+            // 플로우 2 (약 9.9초): 글자 탄막 아래로 → 상·중·하 사격 3번
+            new Flow(DOWN,
+                new int[]{5500, LANE3, 0, 3}),
+            // 플로우 3 (약 9.5초): 상·중·하 사격 3번 → 유도 레이저 4개
+            new Flow(NO_SNOW,
+                new int[]{500,  LANE3, 0, 3},     // 약 4.7초에 끝남
+                new int[]{4800, RING,  0, 4}),
+            // 플로우 4 (약 8.7초): 글자 탄막 옆으로 → 위쪽 일제 사격
+            new Flow(SIDE,
+                new int[]{6500, ALL, 1, 11, 2}),
+            // 플로우 5 (약 9.0초): 왼쪽 일제 사격 → 세로 순차 (왼쪽→오른쪽 또는 반대)
+            new Flow(NO_SNOW,
+                new int[]{500,  ALL, 0, 7},
+                new int[]{2500, SEQ, 1, 11}),
+            // 플로우 6 (약 8.6초): 필드가 바로 정사각형으로 바뀐 뒤 4×4 레이저 3번
+            new Flow(NO_SNOW,
+                new int[]{2000, GRID, 0, 3}),
+            // 플로우 7 (약 9.5초): 가로 순차 → 유도 레이저 4개
+            new Flow(NO_SNOW,
+                new int[]{500,  SEQ,  0, 7},      // 약 4.7초에 끝남
+                new int[]{4800, RING, 0, 4}),
         },
-        {   // ---------- 2스테이지: 중간 (쉬움 구성에서 순차 사격 강화(SEQ2)·유도 레이저 강화(RING2) + 작은 상자) ----------
-            // 플로우 1 (약 18.4초): 가로 순차가 위·아래에서 동시에 → 유도 레이저가 2개씩 6번 (포탑 12개)
-            new Flow(false,
-                new int[]{5500,  ALL,   1, 11, 2},
-                new int[]{7500,  ALL,   0, 7},
-                new int[]{9500,  SEQ2,  0, 7},    // 약 12.2초에 끝남
-                new int[]{12400, RING2, 0, 12}),
-            // 플로우 2 (약 13.7초): 상·중·하 사격 강화 6번 (한 줄 발사 3번은 빠르게, 두 줄 발사 3번은 쉬움과 같게)
-            new Flow(true,
-                new int[]{6500,  LANE3F, 0, 6}),
-            // 플로우 3 (약 22.6초): 상·중·하 사격 강화 3번(모두 한 줄 → 빠르게) → 유도 레이저가 2개씩 4번 (포탑 8개)
-            //                     → 필드가 정사각형으로 바뀐 뒤 회전 빔 (맨 마지막)
-            new Flow(false,
-                new int[]{5500,  LANE3F, 0, 3},   // 약 8.8초에 끝남
-                new int[]{9000,  RING2,  0, 8},   // 약 13.0초에 끝남
-                new int[]{15000, SWEEP,  0, 8}),  // 13~15초에 필드 변형, 넓은 빔 8번 × 45도 = 360도 (방향 무작위), 천천히 빨라짐
-            // 플로우 4 (약 19.2초): 글자 탄막 옆으로 → 위쪽 일제 사격 → 가로 순차(위·아래 동시) → 작은 상자 (맨 마지막)
-            new Flow(true,
-                new int[]{6500,  ALL,  1, 11, 2},   // 위쪽 일제 사격, 2줄 비움
-                new int[]{8600,  SEQ2, 0, 7},       // 약 11.3초에 끝남
-                new int[]{11900, BOX,  0, 8}),      // 순차 사격이 끝나면 필드가 줄어들고(0.3초) 0.3초 뒤 시작, 8번 발사
-            // 플로우 5 (약 15.5초): 왼쪽 일제 사격 → 세로 순차가 양 끝에서 가운데로 → 유도 레이저가 2개씩 4번
-            new Flow(false,
-                new int[]{5500,  ALL,   0, 7},
-                new int[]{7500,  SEQ2,  1, 11},   // 약 11.2초에 끝남
-                new int[]{11300, RING2, 0, 8}),
-            // 플로우 6 (약 20.0초): 유도 레이저가 2개씩 4번 → 4×4 포탑 3번 (안전 칸 2곳, 맨 마지막)
-            new Flow(false,
-                new int[]{5500,  RING2, 0, 8},   // 약 9.5초에 끝남
-                new int[]{11600, GRIDT,  0, 3}),
-            // 플로우 7 (약 20.3초): 글자 탄막 옆으로 → 상·중·하 사격 강화 3번 → 4×4 포탑 3번 (맨 마지막)
-            new Flow(true,
-                new int[]{6500,  LANE3F, 0, 3},   // 약 9.8초에 끝남
-                new int[]{11900, GRIDT,   0, 3}),
+        {   // ---------- 2스테이지: 중간 (순차 사격 강화 SEQ2·유도 레이저 강화 RING2·상중하 강화 LANE3F + 회전 빔·작은 상자·4×4 포탑) ----------
+            // 플로우 1 (약 9.6초): 위쪽 일제 사격 → 가로 순차가 위·아래에서 동시에 → 유도 레이저가 2개씩 4번
+            new Flow(NO_SNOW,
+                new int[]{500,  ALL,   1, 11, 2},
+                new int[]{2500, SEQ2,  0, 7},     // 약 5.2초에 끝남
+                new int[]{5300, RING2, 0, 8}),
+            // 플로우 2 (약 10.1초): 글자 탄막 옆으로 → 상·중·하 사격 강화 3번 (한 줄 발사, 빠르게)
+            new Flow(SIDE,
+                new int[]{6500, LANE3F, 0, 3}),
+            // 플로우 3 (약 9.6초): 필드가 바로 정사각형으로 바뀐 뒤 회전 빔 8번 × 45도 = 360도
+            new Flow(NO_SNOW,
+                new int[]{2000, SWEEP, 0, 8}),
+            // 플로우 4 (약 8.5초): 글자 탄막 아래로 → 가로 순차(위·아래 동시)
+            new Flow(DOWN,
+                new int[]{5500, SEQ2, 0, 7}),
+            // 플로우 5 (약 10.6초): 세로 순차가 양 끝에서 가운데로 → 작은 상자 6번 (맨 마지막)
+            new Flow(NO_SNOW,
+                new int[]{500,  SEQ2, 1, 11},     // 약 4.2초에 끝남 → 필드가 줄어들고(0.3초) 0.3초 뒤 시작
+                new int[]{4900, BOX,  0, 6}),
+            // 플로우 6 (약 10.4초): 필드가 바로 정사각형으로 바뀐 뒤 4×4 포탑 3번 (안전 칸 2곳)
+            new Flow(NO_SNOW,
+                new int[]{2000, GRIDT, 0, 3}),
+            // 플로우 7 (약 7.7초): 상·중·하 사격 강화 6번 (한 줄 3번은 빠르게, 두 줄 3번)
+            new Flow(NO_SNOW,
+                new int[]{500, LANE3F, 0, 6}),
         },
-        {   // ---------- 3스테이지: 어려움 (중간 구성 + 상·중·하 사격 강화(어려움) LANE3H + 회전 빔 강화 SWEEPF) ----------
-            new Flow(false,
-                new int[]{5500,  ALL,   1, 11, 2},
-                new int[]{7500,  ALL,   0, 7},
-                new int[]{9500,  SEQ2,  0, 7},    // 가로 순차 강화와 동시에
-                new int[]{9500,  SEQ,   1, 11},   // 세로 순차 (약 15.7초에 끝남)
-                new int[]{15800, RING3, 0, 21, 6}),   // 유도 레이저 (어려움): 초반 6개를 빠르게 → 1~3개 묶음 5번
-            new Flow(true,
-                new int[]{6500,  LANE3H, 0, 6},   // 약 13.4초에 끝남
-                new int[]{13500, ZONE,   0, 6}),  // 안전 원: 1.5초 예고 뒤 원이 6번 옮겨 감 (맨 마지막)
-            // 플로우 3 (약 20.5초): 중간 플로우 3과 같지만 세로 빔 2개(LANE3H)·회전 빔이 빠름(SWEEPF)
-            new Flow(false,
-                new int[]{5500,  LANE3H, 0, 3},
-                new int[]{9000,  RING3,  0, 10, 4},   // 초반 4개 → 묶음 2번 (회전 빔 필드 변형 전에 끝남)
-                new int[]{15000, SWEEPF, 0, 8}),
-            new Flow(true,
-                new int[]{6500,  ALL,  1, 11, 2},
-                new int[]{8600,  SEQ2, 0, 7},       // 가로 순차 강화와 동시에
-                new int[]{8600,  SEQ,  1, 11},      // 세로 순차 (약 14.8초에 끝남)
-                new int[]{15300, BOX,  0, 8}),      // 세로 순차가 끝나면 필드가 줄어듦
-            // 플로우 5 (약 17.2초): 중간 플로우 5와 같지만 유도 레이저가 2개씩 6번
-            new Flow(false,
-                new int[]{5500,  ALL,   0, 7},
-                new int[]{7500,  SEQ2,  1, 11},   // 세로 순차 강화와 동시에
-                new int[]{7500,  SEQ,   0, 7},    // 가로 순차 (약 11.7초에 끝남)
-                new int[]{11800, RING3, 0, 21, 6}),
-            // 플로우 6 (약 22.7초): 상·중·하 사격 강화(어려움) 3번 → 유도 레이저 (어려움) 4개 → 묶음 2번 → 4×4 포탑 3번 (안전 칸 1곳)
-            new Flow(false,
-                new int[]{5500,  LANE3H, 0, 3},       // 약 9.1초에 끝남
-                new int[]{9200,  RING3,  0, 10, 4},   // 약 13.1초에 끝남
-                new int[]{15200, GRIDT1,  0, 3}),
-            // 플로우 7 (약 20.6초): 글자 탄막 옆으로 → 유도 레이저 (어려움) 6개 → 묶음 2번 → 4×4 포탑 3번 (안전 칸 1곳)
-            new Flow(true,
-                new int[]{6500,  RING3, 0, 12, 6},    // 약 11.0초에 끝남
-                new int[]{13100, GRIDT1, 0, 3}),
+        {   // ---------- 3스테이지: 어려움 (중간 구성 + 상중하 어려움 LANE3H·유도 어려움 RING3·회전 빔 강화 SWEEPF·안전 원 ZONE) ----------
+            // 플로우 1 (약 9.0초): 위쪽 일제 사격 → 가로 순차 강화 + 세로 순차 동시에
+            new Flow(NO_SNOW,
+                new int[]{500,  ALL,  1, 11, 2},
+                new int[]{2500, SEQ2, 0, 7},
+                new int[]{2500, SEQ,  1, 11}),    // 약 8.7초에 끝남
+            // 플로우 2 (약 10.4초): 글자 탄막 옆으로 → 상·중·하 사격 강화(어려움) 3번
+            new Flow(SIDE,
+                new int[]{6500, LANE3H, 0, 3}),
+            // 플로우 3 (약 7.5초): 필드가 바로 정사각형으로 바뀐 뒤 빠른 회전 빔 8번
+            new Flow(NO_SNOW,
+                new int[]{2000, SWEEPF, 0, 8}),
+            // 플로우 4 (약 9.5초): 상·중·하 사격 강화(어려움) 3번 → 안전 원 (원이 3번 옮겨 감, 맨 마지막)
+            new Flow(NO_SNOW,
+                new int[]{500,  LANE3H, 0, 3},    // 약 4.1초에 끝남
+                new int[]{4200, ZONE,   0, 3}),
+            // 플로우 5 (약 10.3초): 글자 탄막 아래로 → 유도 레이저 (어려움): 초반 6개를 빠르게 → 1~3개 묶음 2번
+            new Flow(DOWN,
+                new int[]{5500, RING3, 0, 12, 6}),
+            // 플로우 6 (약 10.3초): 세로 순차 강화 + 가로 순차 동시에 → 작은 상자 5번 (맨 마지막)
+            new Flow(NO_SNOW,
+                new int[]{500,  SEQ2, 1, 11},
+                new int[]{500,  SEQ,  0, 7},      // 약 4.7초에 끝남
+                new int[]{5400, BOX,  0, 5}),
+            // 플로우 7 (약 9.5초): 필드가 바로 정사각형으로 바뀐 뒤 4×4 포탑 3번 (안전 칸 1곳)
+            new Flow(NO_SNOW,
+                new int[]{2000, GRIDT1, 0, 3}),
         },
     };
     private static final Color BEAM_COLOR = new Color(0, 230, 220);
@@ -241,7 +222,8 @@ public class DodgeGamePanel extends JPanel {
     private boolean flowBagDone = false;  // 모든 플로우를 한 번씩 다 보여줬는지 (그 뒤로는 완전 무작위)
     int[][] script = FLOWS[0][0].events;   // 이번 적의 턴에 쓰는 패턴 목록
     int patternEndMs;                   // 이번 스크립트가 끝나는 시각
-    boolean sideSnow, snowFromLeft;     // 글자 탄막이 옆으로 오는지, 왼쪽에서 오는지
+    int snow = DOWN;                    // 이번 플로우의 글자 탄막 (NO_SNOW·DOWN·SIDE)
+    boolean snowFromLeft;               // 옆으로 오는 글자 탄막이 왼쪽에서 오는지
 
     long startTime;
     int[][] safeLanes = new int[0][];      // ALL: 비워 둘 줄들
@@ -317,12 +299,14 @@ public class DodgeGamePanel extends JPanel {
             int forced = Integer.getInteger("javaquest.flow", 0);
             if (forced >= 1 && forced <= flows.length) flow = forced - 1;
             script = flows[flow].events;
-            // 테스트용: -Djavaquest.gridOnly=true 이면 그 스테이지의 4×4 칸 패턴만 (글자 탄막 뒤 5.5초에 시작)
+            snow = flows[flow].snow;
+            // 테스트용: -Djavaquest.gridOnly=true 이면 그 스테이지의 4×4 칸 패턴만 (글자 탄막 없이 2초에 시작)
             if (Boolean.getBoolean("javaquest.gridOnly")) {
-                for (int[] e : flows[flows.length - 1].events)
-                    if (isGrid(e[1])) script = new int[][]{{5500, e[1], e[2], e[3]}};
+                for (Flow f : flows)
+                    for (int[] e : f.events)
+                        if (isGrid(e[1])) script = new int[][]{{2000, e[1], e[2], e[3]}};
+                snow = NO_SNOW;
             }
-            sideSnow = flows[flow].sideSnow;
             snowFromLeft = rand.nextBoolean();
             patternEndMs = computePatternEnd(script);
         }
@@ -477,7 +461,7 @@ public class DodgeGamePanel extends JPanel {
         }
 
         // 포탑 패턴에서는 처음 3초 동안만 탄막을 새로 만든다
-        boolean spawnBullets = !useCannonPattern() || elapsed < BULLET_END_MS;
+        boolean spawnBullets = !useCannonPattern() || (snow != NO_SNOW && elapsed < BULLET_END_MS);
 
         int spawnRate = Math.max(2, 4 - currentStage);   // 몇 프레임마다 하나: 1스테이지 3, 2·3스테이지 2 (1이면 매 프레임이라 거의 못 피함)
         spawnCounter++;
@@ -486,7 +470,7 @@ public class DodgeGamePanel extends JPanel {
             spawnCounter = 0;
             String selectedText = symbols[rand.nextInt(symbols.length)];
             int bx, by, bvx, bvy;
-            if (useCannonPattern() && sideSnow) {   // 옆으로: 왼쪽 또는 오른쪽 벽에서 반대편으로 (필드가 가로로 길어 더 빠르게)
+            if (useCannonPattern() && snow == SIDE) {   // 옆으로: 왼쪽 또는 오른쪽 벽에서 반대편으로 (필드가 가로로 길어 더 빠르게)
                 // 오른쪽에서 나올 때는 글자 폭만큼 안쪽에서 시작 (테두리와 겹치지 않게)
                 bx = snowFromLeft ? 22 : panelWidth - 20 - fm.stringWidth(selectedText);
                 // 같은 벽에서 연달아 나오므로, 최근 3개와 높이가 16px 이상 떨어지게 (글자끼리 겹침 방지)
