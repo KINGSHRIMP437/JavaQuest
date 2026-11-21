@@ -64,10 +64,11 @@ public class GameFrame extends JFrame {
     public void recordStageResult(String topicId, int stageNo, boolean won, int remainingHearts) {
         if (!won) return; // 패배하거나 도망치면 기록하지 않음
 
-        int stars = 1;
-        if (remainingHearts >= 3) {
+        // 하트 5개 기준: 5개 → 별 3개, 4·3개 → 별 2개, 2·1개 → 별 1개
+        int stars;
+        if (remainingHearts >= 5) {
             stars = 3;
-        } else if (remainingHearts == 2) {
+        } else if (remainingHearts >= 3) {
             stars = 2;
         } else {
             stars = 1;
