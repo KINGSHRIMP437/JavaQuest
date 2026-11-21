@@ -130,14 +130,16 @@ public class GameFrame extends JFrame {
         }
 
         stageMapScreen = new StageMapScreen(topicId, stageBestStars, stageNo -> {
-            currentPlayingStage = stageNo; // 어떤 스테이지를 선택했는지 저장
+            currentPlayingStage = stageNo; 
             
             List<QuizItem> questions = DataLoader.loadQuestions("questions.txt", topicId, stageNo);
             Stage stage = DataLoader.loadStage("monsters.txt", topicId, stageNo);
 
-            battleScreen.startBattle(getTopicTitle(topicId), stage, questions);
+            // stageBestStars를 함께 전달하도록 수정
+            battleScreen.startBattle(getTopicTitle(topicId), stage, questions, stageBestStars);
             cardLayout.show(mainContainer, "battle");
         }, this::showTopicSelect);
+
 
         mainContainer.add(stageMapScreen, "stageMap");
         mainContainer.revalidate();

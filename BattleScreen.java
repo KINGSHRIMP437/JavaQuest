@@ -37,6 +37,7 @@ public class BattleScreen extends JPanel {
     private JProgressBar timeBar = new JProgressBar();
 
     private JLabel stageLabel = new JLabel("", SwingConstants.LEFT);
+    private JLabel stageStarsLabel = new JLabel("", SwingConstants.LEFT); // 추가: 스테이지별 별 표시 라벨
     private JLabel turnLabel = new JLabel("", SwingConstants.RIGHT);
     private JLabel bossNameLabel = new JLabel("", SwingConstants.CENTER);
     private JProgressBar bossHpBar = new JProgressBar();
@@ -70,7 +71,7 @@ public class BattleScreen extends JPanel {
         flashTimer = new Timer(100, e -> flashStep());
     }
 
-    public void startBattle(String topicName, Stage stage, List<QuizItem> questions) {
+    public void startBattle(String topicName, Stage stage, List<QuizItem> questions, java.util.Map<String, Integer> stageBestStars) {
         String topicId = stage.getTopic();
         String bossName = stage.getBossName();
         this.stageNo = stage.getStageNo();
@@ -89,6 +90,7 @@ public class BattleScreen extends JPanel {
         lastHearts = engine.getPlayerHearts();
 
         stageLabel.setText("STAGE " + stageNo + " · " + topicName);
+        stageStarsLabel.setText(formatStageStars(topicId, stageBestStars)); // 별점 텍스트 갱신
         bossNameLabel.setText(bossName);
         bossHpBar.setMaximum(engine.getBossMaxHp());
         bossHpBar.setValue(engine.getBossHp());
@@ -103,6 +105,21 @@ public class BattleScreen extends JPanel {
 
         revalidate();
         repaint();
+    }
+    
+    private String formatStageStars(String topicId, java.util.Map<String, Integer> bestStars) {
+        if (bestStars == null) return "";
+        StringBuilder sb = new StringBuilder("[ ");
+        for (int s = 1; s <= 3; s++) {
+            int stars = bestStars.getOrDefault(topicId + "_" + s, 0);
+            sb.append("S").append(s).append(": ");
+            for (int i = 0; i < 3; i++) {
+                sb.append(i < stars ? "★" : "☆");
+            }
+            if (s < 3) sb.append("  ");
+        }
+        sb.append(" ]");
+        return sb.toString();
     }
 
     public void setBattleListener(BattleListener l) {
@@ -158,13 +175,24 @@ public class BattleScreen extends JPanel {
 
         JPanel headerTop = new JPanel(new BorderLayout());
         headerTop.setOpaque(false);
+
+        // 좌측 상단: 스테이지 텍스트 + 스테이지별 별점 묶음 패널
+        JPanel leftHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        leftHeader.setOpaque(false);
+
         stageLabel.setForeground(Color.YELLOW);
         stageLabel.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+
+        stageStarsLabel.setForeground(new Color(255, 215, 0)); // 금색
+        stageStarsLabel.setFont(new Font("Dialog", Font.BOLD, 16));
+
+        leftHeader.add(stageLabel);
+        leftHeader.add(stageStarsLabel);
 
         turnLabel.setForeground(Color.WHITE);
         turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
 
-        headerTop.add(stageLabel, BorderLayout.WEST);
+        headerTop.add(leftHeader, BorderLayout.WEST); // 좌측 상단에 배치
         headerTop.add(turnLabel, BorderLayout.EAST);
         topPanel.add(headerTop);
         topPanel.add(Box.createVerticalStrut(10));
