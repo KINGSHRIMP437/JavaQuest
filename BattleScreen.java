@@ -12,7 +12,7 @@ import java.util.Random;
 public class BattleScreen extends JPanel {
     private static final Color BG_COLOR = new Color(15, 20, 35);
     private static final Color BORDER_COLOR = new Color(0, 200, 190);
-    private static final int MAX_HEARTS = 3;
+    private static final int MAX_HEARTS = BattleEngine.MAX_HEARTS;
     private static final int QUIZ_SECONDS = 15;
 
     private BattleEngine engine = new BattleEngine();

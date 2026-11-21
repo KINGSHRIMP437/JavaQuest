@@ -1,6 +1,7 @@
 // 전투 규칙 (화면 코드 없음)
 public class BattleEngine {
-    private int playerHearts = 3;
+    public static final int MAX_HEARTS = 5;   // 교수님 피드백: 너무 어려워서 3 → 5
+    private int playerHearts = MAX_HEARTS;
     private int attacksLeft;
     private String bossName;
     private int bossHp;
@@ -12,7 +13,7 @@ public class BattleEngine {
         this.bossHp = bossHp;
         this.bossMaxHp = bossHp;
         this.attacksLeft = attacks;
-        this.playerHearts = 3;
+        this.playerHearts = MAX_HEARTS;
     }
 
     // 답 제출: 공격 횟수 -1, 정답이면 보스 HP -1
