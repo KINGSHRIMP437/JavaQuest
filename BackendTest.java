@@ -14,7 +14,7 @@ public class BackendTest {
             }
         assert sm.findStage("CODING", 3).getBossName().equals("NullPointerException (Boss)");
         assert sm.findStage("coding", 4) == null;
-        assert qm.findByStage("coding", 1).get(0).answer == 0; // 5/2 → 보기1 "2"
+        assert qm.findByStage("coding", 1).get(0).answer == 1; // 클래스로 만든 실제 대상 → 보기2 "객체"
         Stage common2 = DataLoader.loadStage("monsters.txt", "common", 2);
         assert common2.getBossName().equals("상식 백과사전 (Lv.2)");
         assert common2.getHpPercent() == 50 : "HP 비율은 monsters.txt 값";
