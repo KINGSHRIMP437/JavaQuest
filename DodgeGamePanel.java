@@ -25,16 +25,8 @@ public class DodgeGamePanel extends JPanel {
     
     int currentStage = 1;
     String currentTopicId = "coding";
-    
-    int laserTimer = 0;
-    boolean isHorizontalLaser = false;
-    int laserPos = 0;
-    boolean isLaserCharging = false;
-    boolean isLaserFiring = false;
-    int chargeCounter = 0;
-    int fireCounter = 0;
 
-    // 포탑 빔 패턴 (테스트: coding 1스테이지)
+    // 포탑 빔 패턴 (모든 주제 공통. 주제별로 다른 패턴은 추후 FLOWS를 주제마다 나눠 추가)
     // 포탑 한 번: 등장(미끄러져 들어옴) → 충전(빛·예고선) → 발사(빔·번쩍임·흔들림) → 사라짐
     private static final int ALL = 0;    // 일제 사격: 모든 줄이 동시에 발사, 한 줄만 안전
     private static final int SEQ = 1;    // 순차 사격: 한 줄씩 차례로 발사 (방향은 매번 무작위)
@@ -124,9 +116,8 @@ public class DodgeGamePanel extends JPanel {
     }
 
     // 스테이지(난이도)별 플로우 목록: [0] = 1스테이지(쉬움), [1] = 2스테이지(중간), [2] = 3스테이지(어려움)
-    // 교수님 피드백(상대 턴이 너무 김): 플로우 길이를 예전(13~23초)의 절반쯤(7~11초)으로, 글자 탄막은 7개 중 2개에만
-    // 첫 바퀴는 안 나온 플로우 중에서 무작위, 7개가 다 나온 뒤로는 완전 무작위
-    // 목록이 없는 스테이지는 예전 무작위 탄막·레이저
+    // 교수님 피드백(상대 턴이 너무 김): 플로우 길이를 예전(13~23초)의 절반쯤(7.5~10.6초)으로, 글자 탄막은 7개 중 2개에만
+    // 적의 턴마다 처음 7번은 안 나온 플로우 중에서 고르고(모두 한 번씩), 그 뒤로는 완전 무작위 (모든 주제 공통)
     private static final Flow[][] FLOWS = {
         {   // ---------- 1스테이지: 쉬움 ----------
             // 플로우 1 (약 9.0초): 위쪽 일제 사격 → 왼쪽 일제 사격 → 가로 순차
@@ -280,7 +271,7 @@ public class DodgeGamePanel extends JPanel {
         if (phaseTimer != null) phaseTimer.stop();
 
         // 이번 턴 플로우 선택: 첫 바퀴는 섞은 주머니에서 하나씩 꺼내 모든 플로우를 한 번씩 보여주고,
-        // 다 나온 뒤로는 완전 무작위. 플로우가 없는 스테이지는 예전 무작위 탄막
+        // 다 나온 뒤로는 완전 무작위
         if (useCannonPattern()) {
             Flow[] flows = FLOWS[stageNo - 1];
             if (stageNo != flowStage) { flowBag.clear(); flowBagDone = false; flow = -1; }   // 스테이지가 바뀌면 처음부터
@@ -405,9 +396,6 @@ public class DodgeGamePanel extends JPanel {
         isFlashing = false;
         if (hitFlashTimer != null) hitFlashTimer.stop();
         if (phaseTimer != null) phaseTimer.stop();
-        laserTimer = 0;
-        isLaserCharging = false;
-        isLaserFiring = false;
         prevFrameElapsed = -1;
         beamFiredThisFrame = false;
         int n = script.length;
@@ -527,8 +515,6 @@ public class DodgeGamePanel extends JPanel {
                 if (t < 0 || t >= eventLength(script[ev])) continue;
                 drawEvent(g2, ev, t, playerRect, panelWidth, panelHeight);
             }
-        } else {
-            drawRandomLaser(g, playerRect, panelWidth, panelHeight);
         }
 
         if (beamFiredThisFrame) SoundManager.playEffect(SoundManager.LASER);
@@ -573,11 +559,10 @@ public class DodgeGamePanel extends JPanel {
         return false;
     }
 
-    // 포탑 패턴을 쓰는 스테이지: coding·name 주제에서 FLOWS에 목록이 있는 스테이지
+    // 포탑 패턴을 쓰는 스테이지: 모든 주제에서 FLOWS에 목록이 있는 스테이지
     // (1스테이지 = 쉬움, 2스테이지 = 중간, 3스테이지 = 어려움. 탄막패턴표.md 참고)
     private boolean useCannonPattern() {
-        return ("coding".equals(currentTopicId) || "name".equals(currentTopicId))
-                && currentStage >= 1 && currentStage <= FLOWS.length;
+        return currentStage >= 1 && currentStage <= FLOWS.length;
     }
 
     // ---------- 패턴 시간 계산 ----------
@@ -1097,71 +1082,6 @@ public class DodgeGamePanel extends JPanel {
         }
         int s = (int) Math.round(m);
         return new int[]{rand.nextInt(2 * s + 1) - s, rand.nextInt(2 * s + 1) - s};
-    }
-
-    // 기존 패턴: 무작위 위치에 레이저 1개
-    private void drawRandomLaser(Graphics g, Rectangle playerRect, int panelWidth, int panelHeight) {
-        int laserInterval = Math.max(25, 55 - (currentStage * 8));
-        laserTimer++;
-        if (laserTimer >= laserInterval && !isLaserCharging && !isLaserFiring) {
-            isLaserCharging = true;
-            chargeCounter = 0;
-            isHorizontalLaser = rand.nextBoolean();
-            
-            if (isHorizontalLaser) {
-                laserPos = 30 + rand.nextInt(Math.max(30, panelHeight - 60));
-            } else {
-                laserPos = 30 + rand.nextInt(Math.max(30, panelWidth - 60));
-            }
-        }
-
-        if (isLaserCharging) {
-            chargeCounter++;
-            g.setColor(Color.YELLOW);
-            Graphics2D g2d = (Graphics2D) g;
-            float[] dashPattern = {6, 6};
-            g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
-
-            if (isHorizontalLaser) {
-                g2d.drawLine(20, laserPos, panelWidth - 20, laserPos);
-            } else {
-                g2d.drawLine(laserPos, 20, laserPos, panelHeight - 20);
-            }
-            g2d.setStroke(new BasicStroke(1));
-
-            g.setFont(new Font("맑은 고딕", Font.BOLD, 13));
-            g.drawString("! 충전 중...", isHorizontalLaser ? 30 : Math.max(20, laserPos - 30), isHorizontalLaser ? Math.max(20, laserPos - 8) : 38);
-
-            if (chargeCounter >= 25) {
-                isLaserCharging = false;
-                isLaserFiring = true;
-                fireCounter = 0;
-                SoundManager.playEffect(SoundManager.LASER);
-            }
-        }
-
-        if (isLaserFiring) {
-            fireCounter++;
-            g.setColor(new Color(255, 50, 50, 200));
-
-            Rectangle laserRect;
-            if (isHorizontalLaser) {
-                g.fillRect(20, laserPos - 10, panelWidth - 40, 20);
-                laserRect = new Rectangle(20, laserPos - 10, panelWidth - 40, 20);
-            } else {
-                g.fillRect(laserPos - 10, 20, 20, panelHeight - 40);
-                laserRect = new Rectangle(laserPos - 10, 20, 20, panelHeight - 40);
-            }
-
-            if (playerRect.intersects(laserRect)) {
-                applyHit();
-            }
-
-            if (fireCounter >= 15) {
-                isLaserFiring = false;
-                laserTimer = 0;
-            }
-        }
     }
 
     private void drawPlayer(Graphics g) {
