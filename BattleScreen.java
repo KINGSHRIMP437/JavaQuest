@@ -39,6 +39,12 @@ public class BattleScreen extends JPanel {
     private JLabel stageLabel = new JLabel("", SwingConstants.LEFT);
     private JLabel stageStarsLabel = new JLabel("", SwingConstants.LEFT); // 이번 전투의 별점 (남은 하트에 따라 실시간)
     private JLabel turnLabel = new JLabel("", SwingConstants.RIGHT);
+    private TurnToast turnToast = new TurnToast();                  // 턴이 바뀔 때만 잠깐 떴다 사라지는 안내 말풍선
+    private int toastTick = 0;
+    private Timer toastTimer = new Timer(40, e -> fadeToast());
+    private JLabel dodgeHint = new JLabel("적의 차례 · 방향키로 피하세요!", SwingConstants.RIGHT); // 적의 턴 아래 막대 안내
+    private static boolean guideShown = false;                      // 첫 전투에서만 하트·남은 공격을 설명 (이후엔 안 나옴)
+    private static final int TURN_MY = 0, TURN_ENEMY = 1;
     private JLabel bossNameLabel = new JLabel("", SwingConstants.CENTER);
     private JProgressBar bossHpBar = new JProgressBar();
     
@@ -61,7 +67,7 @@ public class BattleScreen extends JPanel {
         setPreferredSize(new Dimension(1050, 800));
         setBackground(BG_COLOR);
         setLayout(new BorderLayout(20, 20));
-        setBorder(BorderFactory.createEmptyBorder(12, 20, 12, 20));
+        setBorder(BorderFactory.createEmptyBorder(6, 20, 6, 20));
 
         initTopArea();
         initCenterArea();
@@ -97,9 +103,15 @@ public class BattleScreen extends JPanel {
         // 스테이지에서 이미지 경로를 읽어와 MonsterView에 전달
         monsterView.setBossStyle(topicId, stageNo, stage.getImagePath());
         
-        messageArea.setText("* 야생의 " + bossName + "이(가) 나타났다!\n* 힙 메모리 어딘가에서 이상한 기운이 느껴진다.");
+        String intro = "* 야생의 " + bossName + "이(가) 나타났다!\n* 힙 메모리 어딘가에서 이상한 기운이 느껴진다.";
+        if (!guideShown) { // 처음 한 번만 설명하고, 이후 전투에서는 나오지 않음
+            intro += "\n\n[안내]\n하트는 내 체력이에요. 탄막에 맞으면 줄어요.\n'남은 공격'은 문제를 풀 수 있는 횟수예요.\n준비가 되면 '공격'을 눌러 보세요!";
+            guideShown = true;
+        }
+        messageArea.setText(intro);
         showCard(centerCards, "msg");
         showCard(bottomCards, "cmd");
+        showTurn(TURN_MY);
         updateStatus();
 
         revalidate();
@@ -117,6 +129,7 @@ public class BattleScreen extends JPanel {
 
         showCard(centerCards, "dodge");
         showCard(bottomCards, "dodge");
+        showTurn(TURN_ENEMY);
 
         centerCards.revalidate();
         centerCards.repaint();
@@ -145,6 +158,7 @@ public class BattleScreen extends JPanel {
         messageArea.setText(text);
         showCard(centerCards, "msg");
         showCard(bottomCards, "cmd");
+        showTurn(TURN_MY);
     }
 
     public void debugHit() {
@@ -177,9 +191,15 @@ public class BattleScreen extends JPanel {
         leftHeader.add(stageStarsLabel);
 
         turnLabel.setForeground(Color.WHITE);
-        turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 20));
+
+        // 가운데: 턴이 바뀔 때 잠깐 떴다 사라지는 말풍선 (평소에는 비어 있음)
+        JPanel toastWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        toastWrap.setOpaque(false);
+        toastWrap.add(turnToast);
 
         headerTop.add(leftHeader, BorderLayout.WEST);
+        headerTop.add(toastWrap, BorderLayout.CENTER);
         headerTop.add(turnLabel, BorderLayout.EAST);
         topPanel.add(headerTop);
         topPanel.add(Box.createVerticalStrut(4));
@@ -200,8 +220,9 @@ public class BattleScreen extends JPanel {
         bossHpBar.setForeground(new Color(220, 50, 50));
         bossHpBar.setBackground(new Color(30, 35, 50));
         bossHpBar.setBorder(new LineBorder(Color.GRAY, 1));
-        bossHpBar.setPreferredSize(new Dimension(500, 22));
-        bossHpBar.setMaximumSize(new Dimension(500, 22));
+        bossHpBar.setPreferredSize(new Dimension(560, 22));
+        bossHpBar.setMaximumSize(new Dimension(560, 22));
+        bossHpBar.setFont(new Font("맑은 고딕", Font.BOLD, 14));
         bossHpBar.setAlignmentX(Component.CENTER_ALIGNMENT);
         topPanel.add(bossHpBar);
 
@@ -345,6 +366,9 @@ public class BattleScreen extends JPanel {
         dodgeStatus.setForeground(Color.YELLOW);
         dodgeStatus.setFont(new Font("맑은 고딕", Font.BOLD, 18));
         dodgeStatusPanel.add(dodgeStatus, BorderLayout.WEST);
+        dodgeHint.setForeground(new Color(255, 170, 80));
+        dodgeHint.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+        dodgeStatusPanel.add(dodgeHint, BorderLayout.CENTER);
         bottomCards.add(dodgeStatusPanel, "dodge");
 
         bottomCards.add(makeSingleButtonPanel("확인", () -> {
@@ -393,10 +417,10 @@ public class BattleScreen extends JPanel {
         JButton b = new JButton(text);
         b.setBackground(new Color(25, 30, 50));
         b.setForeground(Color.YELLOW);
-        b.setFont(new Font("맑은 고딕", Font.BOLD, 20));
+        b.setFont(new Font("맑은 고딕", Font.BOLD, 24));
         b.setOpaque(true);
         b.setContentAreaFilled(true);
-        b.setPreferredSize(new Dimension(0, 50));
+        b.setPreferredSize(new Dimension(0, 70));
         b.setBorder(new LineBorder(BORDER_COLOR, 2));
         b.addActionListener(e -> action.run());
         p.add(b);
@@ -494,6 +518,7 @@ public class BattleScreen extends JPanel {
 
     private void showEnd(boolean win, String text, String reason) {
         won = win;
+        hideToast();
         if (win) {
             // 승리: 정답·해설과 "확인" 버튼 없이, 보스 베는 연출이 끝나면 맵으로 → 클리어 창(또는 축하 화면)
             // 연출 동안에는 보스와 처치 메시지만 보여 주고 버튼은 숨김 (선택지 연타로 두 번 끝나지 않게)
@@ -520,8 +545,8 @@ public class BattleScreen extends JPanel {
     private void updateStatus() {
         int left = Math.max(0, engine.getBossHp());
         bossHpBar.setValue(left);
-        bossHpBar.setString("HP: " + left + " / " + engine.getBossMaxHp());
-        turnLabel.setText("남은 공격: " + engine.getAttacksLeft() + "회");
+        bossHpBar.setString("보스 체력 " + left + " / " + engine.getBossMaxHp());
+        turnLabel.setText("남은 공격 " + engine.getAttacksLeft() + "회");
         
         for (int i = 0; i < MAX_HEARTS; i++) {
             hearts[i].setForeground(i < engine.getPlayerHearts() ? Color.RED : Color.GRAY);
@@ -535,6 +560,65 @@ public class BattleScreen extends JPanel {
             if (!engine.isLose()) SoundManager.playEffect(SoundManager.HURT);
         }
         lastHearts = engine.getPlayerHearts();
+    }
+
+    // 턴이 바뀔 때 잠깐 떴다 사라지는 안내 (평소에는 화면에 아무것도 남기지 않음)
+    private void showTurn(int turn) {
+        if (turn == TURN_ENEMY) turnToast.display("적의 차례! 피하세요", new Color(255, 160, 70));
+        else turnToast.display("내 차례! 문제를 풀어 공격해요", BORDER_COLOR);
+        toastTick = 0;
+        toastTimer.restart();
+    }
+
+    private void hideToast() {
+        toastTimer.stop();
+        turnToast.alpha = 0f;
+        turnToast.repaint();
+    }
+
+    private void fadeToast() {
+        toastTick++;
+        if (toastTick > 30) {                       // 약 1.2초 보여 준 뒤 서서히 사라짐
+            turnToast.alpha -= 0.08f;
+            if (turnToast.alpha <= 0f) { turnToast.alpha = 0f; toastTimer.stop(); }
+        }
+        turnToast.repaint();
+    }
+
+    // 둥근 반투명 말풍선: 평소엔 투명, 턴이 바뀔 때만 나타남
+    private static class TurnToast extends JLabel {
+        float alpha = 0f;
+        private Color accent = BORDER_COLOR;
+
+        TurnToast() {
+            super("", SwingConstants.CENTER);
+            setOpaque(false);
+            setForeground(Color.WHITE);
+            setFont(new Font("맑은 고딕", Font.BOLD, 24));
+            setPreferredSize(new Dimension(460, 48)); // 크기를 고정해서 나타나고 사라질 때 화면이 흔들리지 않음
+        }
+
+        void display(String text, Color accent) {
+            setText(text);
+            this.accent = accent;
+            alpha = 1f;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            if (alpha <= 0f) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setComposite(AlphaComposite.SrcOver.derive(Math.min(1f, alpha)));
+            g2.setColor(new Color(15, 22, 45, 225));
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, getHeight(), getHeight());
+            g2.setColor(accent);
+            g2.setStroke(new BasicStroke(3f));
+            g2.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, getHeight(), getHeight());
+            super.paintComponent(g2);
+            g2.dispose();
+        }
     }
 
     private void flashHearts() {
