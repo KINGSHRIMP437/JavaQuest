@@ -32,7 +32,7 @@ public class GameFrame extends JFrame {
         topicSelectScreen = new TopicSelectScreen(stageBestStars, topicId -> {
             selectedTopic = topicId;
             openStageMap(selectedTopic);
-        });
+        }, () -> cardLayout.show(mainContainer, "title"));   // 타이틀도 메인 브금이라 다시 틀지 않음
 
         battleScreen = new BattleScreen();
         

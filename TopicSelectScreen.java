@@ -17,8 +17,8 @@ public class TopicSelectScreen extends JPanel {
     private final Map<String, Integer> stageBestStars;   // GameFrame의 클리어 기록 (Key: "topicId_stageNo")
     private final JButton[] topicBtns = new JButton[TOPICS.length];
 
-    // 주제 선택 시 어떤 주제가 선택되었는지 콜백으로 전달 (예: "coding", "common", "name")
-    public TopicSelectScreen(Map<String, Integer> stageBestStars, Consumer<String> onTopicSelected) {
+    // 주제 선택 시 어떤 주제가 선택되었는지 콜백으로 전달 (예: "coding", "common", "name"), 왼쪽 위 `타이틀` 버튼은 onBackToTitle
+    public TopicSelectScreen(Map<String, Integer> stageBestStars, Consumer<String> onTopicSelected, Runnable onBackToTitle) {
         this.stageBestStars = stageBestStars;
         setPreferredSize(new Dimension(1050, 800));
         setBackground(BG_COLOR);
@@ -28,7 +28,25 @@ public class TopicSelectScreen extends JPanel {
         JLabel titleLabel = new JLabel("모험할 주제를 선택하세요", SwingConstants.CENTER);
         titleLabel.setForeground(Color.WHITE);
         titleLabel.setFont(new Font("맑은 고딕", Font.BOLD, 28));
-        add(titleLabel, BorderLayout.NORTH);
+
+        // 왼쪽 위: 타이틀로 돌아가기 (스테이지 맵의 `주제 변경` 버튼과 같은 모양)
+        JButton backBtn = new JButton("Title");
+        backBtn.setBackground(new Color(25, 30, 50));
+        backBtn.setForeground(Color.YELLOW);
+        backBtn.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+        backBtn.setBorder(new LineBorder(Color.GRAY, 1));
+        backBtn.setFocusPainted(false);
+        backBtn.addActionListener(e -> onBackToTitle.run());
+        backBtn.setPreferredSize(new Dimension(63, 36));   // 스테이지 맵 `주제 변경` 버튼과 같은 크기
+        JPanel backWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));   // 위쪽 칸 높이에 맞춰 늘어나지 않게
+        backWrap.setOpaque(false);
+        backWrap.add(backBtn);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        topPanel.add(titleLabel, BorderLayout.CENTER);
+        topPanel.add(backWrap, BorderLayout.WEST);
+        add(topPanel, BorderLayout.NORTH);
 
         // 3개의 주제 카드 배치를 위한 패널
         JPanel cardPanel = new JPanel(new GridLayout(1, 3, 20, 0));
