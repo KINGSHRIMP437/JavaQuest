@@ -39,6 +39,7 @@ public class BattleScreen extends JPanel {
     private JLabel stageLabel = new JLabel("", SwingConstants.LEFT);
     private JLabel stageStarsLabel = new JLabel("", SwingConstants.LEFT); // 이번 전투의 별점 (남은 하트에 따라 실시간)
     private JLabel turnLabel = new JLabel("", SwingConstants.RIGHT);
+    private final TurnCards turnCards = new TurnCards(this);   // 오른쪽 위 턴 카드 (턴이 바뀌면 튀어나왔다가 들어감)
     private JLabel bossNameLabel = new JLabel("", SwingConstants.CENTER);
     private JProgressBar bossHpBar = new JProgressBar();
     
@@ -100,6 +101,7 @@ public class BattleScreen extends JPanel {
         messageArea.setText("* 야생의 " + bossName + "이(가) 나타났다!\n* 힙 메모리 어딘가에서 이상한 기운이 느껴진다.");
         showCard(centerCards, "msg");
         showCard(bottomCards, "cmd");
+        turnCards.show(true);
         updateStatus();
 
         revalidate();
@@ -117,6 +119,7 @@ public class BattleScreen extends JPanel {
 
         showCard(centerCards, "dodge");
         showCard(bottomCards, "dodge");
+        turnCards.show(false);
 
         centerCards.revalidate();
         centerCards.repaint();
@@ -145,6 +148,7 @@ public class BattleScreen extends JPanel {
         messageArea.setText(text);
         showCard(centerCards, "msg");
         showCard(bottomCards, "cmd");
+        turnCards.show(true);
     }
 
     public void debugHit() {
@@ -515,6 +519,13 @@ public class BattleScreen extends JPanel {
         messageArea.setText(text + "\n\n[패배]");
         showCard(centerCards, "msg");
         showCard(bottomCards, "end");
+    }
+
+    // 턴 카드는 다른 화면 요소 위에 그림
+    @Override
+    protected void paintChildren(Graphics g) {
+        super.paintChildren(g);
+        turnCards.paint(g, getWidth(), monsterView.normalImage);
     }
 
     private void updateStatus() {
