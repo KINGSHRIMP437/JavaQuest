@@ -23,11 +23,15 @@ public class BattleEngine {
     }
 
     // 테스트용 무적: java -Djavaquest.god=true GameFrame 으로 실행하면 하트가 줄지 않음 (평소 실행에는 영향 없음)
-    private static final boolean GOD_MODE = Boolean.getBoolean("javaquest.god");
+    // 타이틀 화면에서 A B A B ← → ← → 를 입력해도 켜고 끌 수 있음 (TitleScreen)
+    private static boolean godMode = Boolean.getBoolean("javaquest.god");
+
+    public static boolean isGodMode() { return godMode; }
+    public static boolean toggleGodMode() { return godMode = !godMode; }
 
     // 총알에 맞음: 하트 -1
     public void hitByBullet() {
-        if (GOD_MODE) return;
+        if (godMode) return;
         playerHearts--;
     }
 

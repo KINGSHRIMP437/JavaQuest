@@ -59,7 +59,7 @@ public class GameFrame extends JFrame {
             }
             openStageMap(selectedTopic);
             // 이번에 처음 깼으면 다음 스테이지가 새로 열림 (#17)
-            int unlocked = firstClear && stageNo < 3 ? stageNo + 1 : 0;
+            int unlocked = firstClear && stageNo < 3 && !BattleEngine.isGodMode() ? stageNo + 1 : 0;
             StageClearPopup.show(getRootPane(), stageNo, stars, unlocked);
             // 클리어음이 나는 동안은 브금 없음 → 끝나면 메인 브금
             SoundManager.playEffectThenBgm(SoundManager.STAGE_CLEAR, SoundManager.BGM_MAIN);
@@ -88,7 +88,8 @@ public class GameFrame extends JFrame {
 
         String key = topicId + "_" + stageNo;
         int currentBest = stageBestStars.getOrDefault(key, 0);
-        if (stars > currentBest) {
+        // 무적 모드에서 깬 판은 기록하지 않음 (잠금을 무시하고 깬 기록이 무적 모드를 끈 뒤에도 남아 다음 스테이지가 열리지 않게)
+        if (stars > currentBest && !BattleEngine.isGodMode()) {
             stageBestStars.put(key, stars); // 최고 기록보다 높을 때만 갱신
         }
         return stars;

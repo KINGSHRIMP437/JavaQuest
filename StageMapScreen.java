@@ -70,7 +70,9 @@ public class StageMapScreen extends JPanel {
             boolean isCleared = stageBestStars.containsKey(key);
             int stars = stageBestStars.getOrDefault(key, 0);
             // 순서대로 열림: STAGE 1은 항상, 2·3은 같은 주제의 바로 앞 스테이지를 클리어해야 열림
-            boolean isUnlocked = stageNum == 1 || stageBestStars.containsKey(currentTopic + "_" + (stageNum - 1));
+            // 무적 모드(타이틀 커맨드)에서는 모든 스테이지 열림
+            boolean isUnlocked = stageNum == 1 || stageBestStars.containsKey(currentTopic + "_" + (stageNum - 1))
+                    || BattleEngine.isGodMode();
 
             // 다음에 도전할 스테이지인지 여부 (3스테이지까지 모두 깼다면 민트색 테두리 없음)
             boolean isNextTarget = (stageNum == nextPlayableStage && nextPlayableStage <= 3);

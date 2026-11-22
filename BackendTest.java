@@ -17,6 +17,12 @@ public class BackendTest {
         assert qm.findByStage("coding", 1).get(0).answer == 1; // 클래스로 만든 실제 대상 → 보기2 "객체"
         assert BattleEngine.starsFor(5) == 3 && BattleEngine.starsFor(4) == 2 && BattleEngine.starsFor(3) == 2
             && BattleEngine.starsFor(2) == 1 && BattleEngine.starsFor(1) == 1 : "별점: 하트 5 → 3, 4·3 → 2, 2·1 → 1";
+        int idx = 0;   // 무적 모드 커맨드: A B A B ← → ← → (중간에 틀리면 처음부터, A를 또 누르면 거기서 다시 시작)
+        for (int k : new int[]{java.awt.event.KeyEvent.VK_A, java.awt.event.KeyEvent.VK_A}) idx = TitleScreen.nextCodeIndex(idx, k);
+        assert idx == 1 : "A A → 두 번째 A부터 다시 셈";
+        for (int i = 1; i < TitleScreen.GOD_CODE.length; i++) idx = TitleScreen.nextCodeIndex(idx, TitleScreen.GOD_CODE[i]);
+        assert idx == TitleScreen.GOD_CODE.length : "커맨드를 끝까지 맞게 누르면 완성";
+        assert TitleScreen.nextCodeIndex(4, java.awt.event.KeyEvent.VK_UP) == 0 : "틀리면 처음부터";
         Stage common2 = DataLoader.loadStage("monsters.txt", "common", 2);
         assert common2.getBossName().equals("상식 백과사전 (Lv.2)");
         assert common2.getHpPercent() == 50 : "HP 비율은 monsters.txt 값";
