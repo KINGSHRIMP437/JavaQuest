@@ -17,6 +17,10 @@ public class BackendTest {
         assert qm.findByStage("coding", 1).get(0).answer == 1; // 클래스로 만든 실제 대상 → 보기2 "객체"
         assert BattleEngine.starsFor(5) == 3 && BattleEngine.starsFor(4) == 2 && BattleEngine.starsFor(3) == 2
             && BattleEngine.starsFor(2) == 1 && BattleEngine.starsFor(1) == 1 : "별점: 하트 5 → 3, 4·3 → 2, 2·1 → 1";
+        BattleEngine skip = new BattleEngine();
+        skip.startBattle("boss", 5, 7);
+        skip.skipBattle();
+        assert skip.isWin() && !skip.isLose() : "스킵하면 바로 승리";
         int idx = 0;   // 무적 모드 커맨드: A B A B ← → ← → (중간에 틀리면 처음부터, A를 또 누르면 거기서 다시 시작)
         for (int k : new int[]{java.awt.event.KeyEvent.VK_A, java.awt.event.KeyEvent.VK_A}) idx = TitleScreen.nextCodeIndex(idx, k);
         assert idx == 1 : "A A → 두 번째 A부터 다시 셈";

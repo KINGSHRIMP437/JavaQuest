@@ -39,6 +39,7 @@ public class BattleScreen extends JPanel {
     private JLabel stageLabel = new JLabel("", SwingConstants.LEFT);
     private JLabel stageStarsLabel = new JLabel("", SwingConstants.LEFT); // 이번 전투의 별점 (남은 하트에 따라 실시간)
     private JLabel turnLabel = new JLabel("", SwingConstants.RIGHT);
+    private JButton skipBtn;   // 시연용: 무적 모드에서만 왼쪽 위에 보임, 나의 턴(명령 고르기)에만 누를 수 있음
     private final TurnCards turnCards = new TurnCards(this);   // 오른쪽 위 턴 카드 (턴이 바뀌면 튀어나왔다가 들어감)
     private JLabel bossNameLabel = new JLabel("", SwingConstants.CENTER);
     private JProgressBar bossHpBar = new JProgressBar();
@@ -102,6 +103,7 @@ public class BattleScreen extends JPanel {
         showCard(centerCards, "msg");
         showCard(bottomCards, "cmd");
         turnCards.show(true);
+        skipBtn.setVisible(BattleEngine.isGodMode());
         updateStatus();
 
         revalidate();
@@ -179,6 +181,26 @@ public class BattleScreen extends JPanel {
         stageStarsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         leftHeader.add(stageLabel);
         leftHeader.add(stageStarsLabel);
+
+        // 시연용 스킵: 보스를 바로 쓰러뜨리고 클리어 창 (무적 모드에서만 보임)
+        skipBtn = new JButton("스킵하기");
+        skipBtn.setBackground(new Color(25, 30, 50));
+        skipBtn.setForeground(Color.YELLOW);
+        skipBtn.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+        skipBtn.setBorder(new LineBorder(Color.YELLOW, 1));
+        skipBtn.setFocusPainted(false);
+        skipBtn.setPreferredSize(new Dimension(90, 30));
+        skipBtn.setMaximumSize(new Dimension(90, 30));
+        skipBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        skipBtn.setVisible(false);
+        skipBtn.addActionListener(e -> {
+            engine.skipBattle();
+            monsterView.hit();
+            updateStatus();
+            showEnd(true, "", "");
+        });
+        leftHeader.add(Box.createVerticalStrut(4));
+        leftHeader.add(skipBtn);
 
         turnLabel.setForeground(Color.WHITE);
         turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
@@ -864,6 +886,7 @@ public class BattleScreen extends JPanel {
 
     private void showCard(JPanel cards, String name) {
         ((CardLayout) cards.getLayout()).show(cards, name);
+        if (cards == bottomCards) skipBtn.setEnabled("cmd".equals(name));   // 퀴즈·탄막·연출 중에는 스킵 못 함
     }
 
     public int getPlayerHearts() {

@@ -29,6 +29,9 @@ public class BattleEngine {
     public static boolean isGodMode() { return godMode; }
     public static boolean toggleGodMode() { return godMode = !godMode; }
 
+    // 시연용 스킵 (무적 모드의 스킵 버튼): 보스 HP를 0으로 → 바로 승리
+    public void skipBattle() { bossHp = 0; }
+
     // 총알에 맞음: 하트 -1
     public void hitByBullet() {
         if (godMode) return;
