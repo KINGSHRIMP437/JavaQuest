@@ -1,8 +1,8 @@
-import javax.swing.*;
 import java.awt.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.swing.*;
 
 public class GameFrame extends JFrame {
     private CardLayout cardLayout = new CardLayout();
@@ -58,9 +58,10 @@ public class GameFrame extends JFrame {
             boolean rewarded = firstClear && !BattleEngine.isGodMode();
             if (rewarded) inventory.addReward();
 
-            if (isTopicAllCleared(selectedTopic)) {
+            // 무적 모드(시연)는 기록이 안 남으니 STAGE 3을 깨면 바로 축하 화면
+            if (isTopicAllCleared(selectedTopic) || (BattleEngine.isGodMode() && stageNo == 3)) {
                 // 마지막 스테이지까지 모두 클리어: 클리어 창 대신 축하 화면 (브금 멈추고 팡파르 → 끝나면 메인 브금)
-                showTopicClear(selectedTopic);
+                showTopicClear(selectedTopic, stars);
                 SoundManager.playEffectThenBgm(SoundManager.TOPIC_CLEAR, SoundManager.BGM_MAIN);
                 return;
             }
@@ -118,9 +119,10 @@ public class GameFrame extends JFrame {
     }
 
     // 주제 올클리어 축하 화면 (스테이지별 최고 별점 요약)
-    private void showTopicClear(String topicId) {
+    // 기록이 없는 스테이지(무적 모드)는 이번 판 별점(fallbackStars)으로 표시
+    private void showTopicClear(String topicId, int fallbackStars) {
         int[] stars = new int[3];
-        for (int i = 0; i < 3; i++) stars[i] = stageBestStars.getOrDefault(topicId + "_" + (i + 1), 0);
+        for (int i = 0; i < 3; i++) stars[i] = stageBestStars.getOrDefault(topicId + "_" + (i + 1), fallbackStars);
         topicClearScreen.showResult(getTopicTitle(topicId), stars);
         cardLayout.show(mainContainer, "topicClear");
     }
