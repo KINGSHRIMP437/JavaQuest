@@ -13,8 +13,38 @@ public class BattleEngine {
         this.bossHp = bossHp;
         this.bossMaxHp = bossHp;
         this.attacksLeft = attacks;
+        this.initialAttacks = attacks;
         this.playerHearts = MAX_HEARTS;
+        this.invincibleUntil = 0;
     }
+
+    private int initialAttacks;      // 이번 전투 시작 때의 공격 횟수 (문제 개수 초기화용)
+    private long invincibleUntil;    // 무적이 끝나는 시각(ms), 0이면 무적 아님
+
+    // 체력 완충: 이미 가득이면 false
+    public boolean healFull() {
+        if (playerHearts >= MAX_HEARTS) return false;
+        playerHearts = MAX_HEARTS;
+        return true;
+    }
+
+    // 남은 공격 횟수를 전투 시작 값으로: 이미 시작 값이면 false
+    public boolean resetAttacks() {
+        if (attacksLeft == initialAttacks) return false;
+        attacksLeft = initialAttacks;
+        return true;
+    }
+
+    // 무적 켜기: 이미 무적 중이면 false
+    public boolean activateInvincible(long ms) {
+        if (isInvincible()) return false;
+        invincibleUntil = System.currentTimeMillis() + ms;
+        return true;
+    }
+
+    public boolean isInvincible() { return System.currentTimeMillis() < invincibleUntil; }
+
+    public long getInvincibleMsLeft() { return Math.max(0, invincibleUntil - System.currentTimeMillis()); }
 
     // 답 제출: 공격 횟수 -1, 정답이면 보스 HP -1
     public void submitAnswer(boolean correct) {
@@ -29,9 +59,12 @@ public class BattleEngine {
     public static boolean isGodMode() { return godMode; }
     public static boolean toggleGodMode() { return godMode = !godMode; }
 
+    // 시연용 스킵 (무적 모드의 스킵 버튼): 보스 HP를 0으로 → 바로 승리
+    public void skipBattle() { bossHp = 0; }
+
     // 총알에 맞음: 하트 -1
     public void hitByBullet() {
-        if (godMode) return;
+        if (godMode || isInvincible()) return;
         playerHearts--;
     }
 
