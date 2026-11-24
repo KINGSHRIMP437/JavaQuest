@@ -9,6 +9,7 @@ public class GameFrame extends JFrame {
     private JPanel mainContainer = new JPanel(cardLayout);
 
     private TitleScreen titleScreen;
+    private HowToPlayScreen howToPlayScreen;
     private TopicSelectScreen topicSelectScreen;
     private StageMapScreen stageMapScreen;
     private BattleScreen battleScreen;
@@ -27,7 +28,14 @@ public class GameFrame extends JFrame {
         setLocationRelativeTo(null);
 
         // 1. 화면 인스턴스 생성
-        titleScreen = new TitleScreen(this::showTopicSelect);
+        titleScreen = new TitleScreen(
+            this::showTopicSelect,
+            () -> cardLayout.show(mainContainer, "howToPlay")
+        );
+
+        howToPlayScreen = new HowToPlayScreen(
+            () -> cardLayout.show(mainContainer, "title")
+        );
 
         topicSelectScreen = new TopicSelectScreen(stageBestStars, topicId -> {
             selectedTopic = topicId;
@@ -67,6 +75,7 @@ public class GameFrame extends JFrame {
 
         // 2. 컨테이너에 등록
         mainContainer.add(titleScreen, "title");
+        mainContainer.add(howToPlayScreen, "howToPlay");
         mainContainer.add(topicSelectScreen, "topicSelect");
         mainContainer.add(battleScreen, "battle");
         mainContainer.add(topicClearScreen, "topicClear");

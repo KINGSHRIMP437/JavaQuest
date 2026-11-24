@@ -16,6 +16,8 @@ public class TopicSelectScreen extends JPanel {
 
     private final Map<String, Integer> stageBestStars;   // GameFrame의 클리어 기록 (Key: "topicId_stageNo")
     private final JButton[] topicBtns = new JButton[TOPICS.length];
+    private final JLabel[] titleLabels = new JLabel[TOPICS.length];
+    private final JLabel[] descLabels = new JLabel[TOPICS.length];
 
     // 주제 선택 시 어떤 주제가 선택되었는지 콜백으로 전달 (예: "coding", "common", "name"), 왼쪽 위 `타이틀` 버튼은 onBackToTitle
     public TopicSelectScreen(Map<String, Integer> stageBestStars, Consumer<String> onTopicSelected, Runnable onBackToTitle) {
@@ -48,21 +50,40 @@ public class TopicSelectScreen extends JPanel {
         topPanel.add(backWrap, BorderLayout.WEST);
         add(topPanel, BorderLayout.NORTH);
 
-        // 3개의 주제 카드 배치를 위한 패널
-        JPanel cardPanel = new JPanel(new GridLayout(1, 3, 20, 0));
+        // 3개의 주제 카드 배치를 위한 패널 (StageMapScreen과 동일한 크기·간격)
+        JPanel cardPanel = new JPanel(new GridLayout(1, 3, 30, 0));
         cardPanel.setOpaque(false);
-        cardPanel.setBorder(BorderFactory.createEmptyBorder(40, 20, 40, 20));
+        cardPanel.setBorder(BorderFactory.createEmptyBorder(60, 40, 60, 40));
 
         for (int i = 0; i < TOPICS.length; i++) {
             JButton topicBtn = new JButton();
             topicBtn.setBackground(new Color(25, 30, 50));
-            topicBtn.setForeground(Color.WHITE);
-            topicBtn.setFont(new Font("맑은 고딕", Font.PLAIN, 16));
+            topicBtn.setLayout(new BorderLayout());
             topicBtn.setFocusPainted(false);
+
+            // 상단: 주제 제목 (클리어 시 [CLEAR] + 별점)
+            JLabel cardTitle = new JLabel("", SwingConstants.CENTER);
+            cardTitle.setForeground(Color.WHITE);
+            cardTitle.setBorder(BorderFactory.createEmptyBorder(45, 10, 0, 10));
+
+            // 중앙: 설명글 (스테이지 선택 화면과 같은 카드 정중앙 위치)
+            JLabel cardDesc = new JLabel("", SwingConstants.CENTER);
+            cardDesc.setForeground(Color.WHITE);
+            cardDesc.setFont(new Font("맑은 고딕", Font.PLAIN, 22));
+            cardDesc.setBorder(BorderFactory.createEmptyBorder(0, 16, 0, 16));
+
+            // 하단 여백: 스테이지 카드의 '입장하기' 버튼 영역 높이와 맞춰 설명글을 정중앙에 고정
+            Component bottomSpacer = Box.createVerticalStrut(72);
+
+            topicBtn.add(cardTitle, BorderLayout.NORTH);
+            topicBtn.add(cardDesc, BorderLayout.CENTER);
+            topicBtn.add(bottomSpacer, BorderLayout.SOUTH);
 
             String topicId = TOPICS[i][2];
             topicBtn.addActionListener(e -> onTopicSelected.accept(topicId));
             topicBtns[i] = topicBtn;
+            titleLabels[i] = cardTitle;
+            descLabels[i] = cardDesc;
             cardPanel.add(topicBtn);
         }
 
@@ -83,28 +104,33 @@ public class TopicSelectScreen extends JPanel {
                 else stars[s] = v;
             }
 
-            StringBuilder html = new StringBuilder("<html><center>");
+            StringBuilder titleHtml = new StringBuilder("<html><center>");
             if (allCleared) {
-                html.append("<b><font size='6' color='#64FF96'>").append(t[0]).append(" [CLEAR]</font></b><br>")
-                    .append(starHtml(stars));
+                titleHtml.append("<span style='font-size:30pt; font-weight:bold; color:#64FF96;'>")
+                         .append(t[0]).append(" [CLEAR]</span><br>")
+                         .append(starHtml(stars));
             } else {
-                html.append("<b><font size='6'>").append(t[0]).append("</font></b><br>");
+                titleHtml.append("<span style='font-size:34pt; font-weight:bold; color:#FFFFFF;'>")
+                         .append(t[0]).append("</span>");
             }
-            html.append("<br>").append(t[1].replace("\n", "<br>")).append("</center></html>");
+            titleHtml.append("</center></html>");
 
-            topicBtns[i].setText(html.toString());
-            topicBtns[i].setBorder(allCleared ? new LineBorder(Color.GRAY, 1) : new LineBorder(BORDER_COLOR, 2));
+            titleLabels[i].setText(titleHtml.toString());
+            descLabels[i].setText("<html><center>" + t[1].replace("\n", "<br>") + "</center></html>");
+
+            LineBorder line = allCleared ? new LineBorder(Color.GRAY, 1) : new LineBorder(BORDER_COLOR, 2);
+            topicBtns[i].setBorder(line);
         }
     }
 
     // 스테이지 1~3 최고 별점의 평균(반올림)을 별 3칸으로 표시 (얻은 별 금색, 나머지 회색). 예: 3·2·1 → 평균 2 → ★★☆
     private static String starHtml(int[] stars) {
         int avg = (int) Math.round((stars[0] + stars[1] + stars[2]) / 3.0);
-        StringBuilder sb = new StringBuilder("<span style='font-size:24pt;'>");
+        StringBuilder sb = new StringBuilder("<span style='font-size:26pt;'>");
         for (int k = 1; k <= 3; k++) {
             sb.append(k <= avg ? "<font color='#FFD700'>★</font>" : "<font color='#555555'>☆</font>");
         }
-        sb.append("</span><br>");
+        sb.append("</span>");
         return sb.toString();
     }
 }

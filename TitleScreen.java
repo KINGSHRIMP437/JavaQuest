@@ -12,7 +12,7 @@ public class TitleScreen extends JPanel {
     private int codeIdx = 0;
     private final JLabel godLabel = new JLabel(" ", SwingConstants.CENTER);
 
-    public TitleScreen(Runnable onStartClicked) {
+    public TitleScreen(Runnable onStartClicked, Runnable onHowToPlayClicked) {
         setPreferredSize(new Dimension(1050, 800));
         setBackground(BG_COLOR);
         setLayout(new GridBagLayout());
@@ -43,11 +43,37 @@ public class TitleScreen extends JPanel {
         startBtn.setMaximumSize(new Dimension(250, 60));
         startBtn.addActionListener(e -> onStartClicked.run());
 
+        // 게임 설명 버튼
+        JButton howToPlayBtn = new JButton("게임 설명");
+        howToPlayBtn.setBackground(new Color(25, 30, 50));
+        howToPlayBtn.setForeground(Color.WHITE);
+        howToPlayBtn.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+        howToPlayBtn.setBorder(new LineBorder(BORDER_COLOR, 1));
+        howToPlayBtn.setFocusPainted(false);
+        howToPlayBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        howToPlayBtn.setMaximumSize(new Dimension(250, 48));
+        howToPlayBtn.addActionListener(e -> onHowToPlayClicked.run());
+
+        // 소리 설정 버튼
+        JButton soundBtn = new JButton("소리 설정");
+        soundBtn.setBackground(new Color(25, 30, 50));
+        soundBtn.setForeground(Color.WHITE);
+        soundBtn.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+        soundBtn.setBorder(new LineBorder(Color.GRAY, 1));
+        soundBtn.setFocusPainted(false);
+        soundBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        soundBtn.setMaximumSize(new Dimension(250, 48));
+        soundBtn.addActionListener(e -> showSoundDialog());
+
         container.add(titleLabel);
         container.add(Box.createVerticalStrut(10));
         container.add(subLabel);
         container.add(Box.createVerticalStrut(60));
         container.add(startBtn);
+        container.add(Box.createVerticalStrut(14));
+        container.add(howToPlayBtn);
+        container.add(Box.createVerticalStrut(14));
+        container.add(soundBtn);
 
         godLabel.setForeground(new Color(255, 90, 90));
         godLabel.setFont(new Font("맑은 고딕", Font.BOLD, 18));
@@ -71,6 +97,86 @@ public class TitleScreen extends JPanel {
             }
             return false;   // 다른 키 처리는 그대로
         });
+    }
+
+    private void showSoundDialog() {
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        JDialog dialog = new JDialog(owner, "소리 설정", Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setResizable(false);
+
+        JPanel root = new JPanel();
+        root.setBackground(BG_COLOR);
+        root.setLayout(new BoxLayout(root, BoxLayout.Y_AXIS));
+        root.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(BORDER_COLOR, 2),
+                BorderFactory.createEmptyBorder(24, 28, 24, 28)
+        ));
+
+        JLabel header = new JLabel("소리 설정");
+        header.setForeground(Color.WHITE);
+        header.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+        header.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        root.add(header);
+        root.add(Box.createVerticalStrut(22));
+        root.add(createVolumeRow("배경음", SoundManager.getBgmVolume(), SoundManager::setBgmVolume, false));
+        root.add(Box.createVerticalStrut(16));
+        root.add(createVolumeRow("효과음", SoundManager.getEffectVolume(), SoundManager::setEffectVolume, true));
+        root.add(Box.createVerticalStrut(24));
+
+        JButton closeBtn = new JButton("닫기");
+        closeBtn.setBackground(new Color(25, 30, 50));
+        closeBtn.setForeground(Color.YELLOW);
+        closeBtn.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        closeBtn.setBorder(new LineBorder(BORDER_COLOR, 1));
+        closeBtn.setFocusPainted(false);
+        closeBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        closeBtn.setMaximumSize(new Dimension(120, 40));
+        closeBtn.addActionListener(e -> dialog.dispose());
+        root.add(closeBtn);
+
+        dialog.setContentPane(root);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private JPanel createVolumeRow(String labelText, int initialValue, java.util.function.IntConsumer onChange, boolean playPreview) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
+        row.setOpaque(false);
+        row.setMaximumSize(new Dimension(380, 40));
+
+        JLabel nameLabel = new JLabel(labelText);
+        nameLabel.setForeground(Color.WHITE);
+        nameLabel.setFont(new Font("맑은 고딕", Font.BOLD, 15));
+        nameLabel.setPreferredSize(new Dimension(56, 30));
+
+        JLabel valueLabel = new JLabel(formatVolume(initialValue), SwingConstants.RIGHT);
+        valueLabel.setForeground(BORDER_COLOR);
+        valueLabel.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+        valueLabel.setPreferredSize(new Dimension(54, 30));
+
+        JSlider slider = new JSlider(0, 100, initialValue);
+        slider.setOpaque(false);
+        slider.setFocusable(false);
+        slider.setPreferredSize(new Dimension(220, 30));
+        slider.addChangeListener(e -> {
+            int val = slider.getValue();
+            valueLabel.setText(formatVolume(val));
+            onChange.accept(val);
+            if (playPreview && !slider.getValueIsAdjusting() && val > 0) {
+                SoundManager.playClick();
+            }
+        });
+
+        row.add(nameLabel, BorderLayout.WEST);
+        row.add(slider, BorderLayout.CENTER);
+        row.add(valueLabel, BorderLayout.EAST);
+        return row;
+    }
+
+    private static String formatVolume(int value) {
+        return value == 0 ? "음소거" : value + "%";
     }
 
     private void updateGodLabel() {

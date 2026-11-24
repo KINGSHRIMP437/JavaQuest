@@ -82,25 +82,29 @@ public class StageMapScreen extends JPanel {
             // 조건에 따라 테두리 색상 및 두께 다르게 설정
             stageCard.setBorder(new LineBorder(isNextTarget ? BORDER_COLOR : Color.GRAY, isNextTarget ? 2 : 1));
             
-            // 상단 타이틀 영역 (클리어 시 [CLEAR] 표시 병행)
+            // 상단 타이틀 영역 (클리어 시 [CLEAR] 표시 병행, 가로 가운데 정렬)
             String titleText = stageInfo[i][0] + (isCleared ? " [CLEAR]" : "");
             JLabel sTitle = new JLabel(titleText, SwingConstants.CENTER);
             sTitle.setForeground(!isUnlocked ? LOCKED_TEXT : isCleared ? new Color(100, 255, 150) : Color.YELLOW);
-            sTitle.setFont(new Font("맑은 고딕", Font.BOLD, 18));
-            sTitle.setBorder(BorderFactory.createEmptyBorder(20, 10, 5, 10));
+            sTitle.setFont(new Font("맑은 고딕", Font.BOLD, 28));
+            sTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+            sTitle.setBorder(BorderFactory.createEmptyBorder(28, 10, 6, 10));
 
             // 별점 표시 라벨 (클리어된 경우에만 별 표시)
             JLabel starLabel = new JLabel(getStarString(stars, isCleared), SwingConstants.CENTER);
-            starLabel.setFont(new Font("Dialog", Font.BOLD, 20));
-            starLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 15, 10));
+            starLabel.setFont(new Font("Dialog", Font.BOLD, 22));
+            starLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            starLabel.setBorder(BorderFactory.createEmptyBorder(4, 10, 12, 10));
 
-            // 설명 텍스트
-            JTextArea sDesc = new JTextArea(stageInfo[i][1]);
-            sDesc.setEditable(false);
-            sDesc.setOpaque(false);
+            // 설명 텍스트 (가로·세로 정중앙 정렬)
+            JLabel sDesc = new JLabel(
+                    "<html><center>" + stageInfo[i][1].replace("\n", "<br>") + "</center></html>",
+                    SwingConstants.CENTER);
             sDesc.setForeground(isUnlocked ? Color.WHITE : LOCKED_TEXT);
-            sDesc.setFont(new Font("맑은 고딕", Font.PLAIN, 15));
-            sDesc.setMargin(new Insets(10, 20, 10, 20));
+            sDesc.setFont(new Font("맑은 고딕", Font.PLAIN, 19));
+            sDesc.setBorder(BorderFactory.createEmptyBorder(10, 16, 10, 16));
+            sDesc.setAlignmentX(0.5f);
+            sDesc.setAlignmentY(0.5f);
 
             // 카드 내부 상단 패널 (제목 + 별점 묶음)
             JPanel cardHeader = new JPanel();
@@ -109,31 +113,38 @@ public class StageMapScreen extends JPanel {
             cardHeader.add(sTitle);
             cardHeader.add(starLabel);
 
+            // 입장하기 버튼: 박스 가로폭을 채우는 긴 바 형태
             JButton enterBtn = new JButton("입장하기");
             enterBtn.setBackground(new Color(25, 30, 50));
             enterBtn.setForeground(Color.WHITE);
-            enterBtn.setFont(new Font("맑은 고딕", Font.BOLD, 16));
-            enterBtn.setBorder(new LineBorder(isUnlocked ? BORDER_COLOR : LOCKED_TEXT, 1));
+            enterBtn.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+            enterBtn.setPreferredSize(new Dimension(0, 48));
+            enterBtn.setBorder(new LineBorder(isUnlocked ? BORDER_COLOR : LOCKED_TEXT, 2));
             enterBtn.setFocusPainted(false);
             enterBtn.setEnabled(isUnlocked); // 잠긴 스테이지는 입장 불가
             enterBtn.addActionListener(e -> onStageSelected.accept(stageNum));
 
-            JPanel btnWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
+            JPanel btnWrapper = new JPanel(new BorderLayout());
             btnWrapper.setOpaque(false);
-            btnWrapper.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
-            btnWrapper.add(enterBtn);
+            btnWrapper.setBorder(BorderFactory.createEmptyBorder(0, 24, 24, 24));
+            btnWrapper.add(enterBtn, BorderLayout.CENTER);
 
             stageCard.add(cardHeader, BorderLayout.NORTH);
             if (isUnlocked) {
                 stageCard.add(sDesc, BorderLayout.CENTER);
             } else {
-                // 잠긴 카드: 흐린 설명 아래 가운데에 자물쇠
-                JPanel lockedCenter = new JPanel(new BorderLayout());
+                // 잠긴 카드: STAGE 1과 동일한 중앙 위치에 설명글을 두고 자물쇠 아이콘을 중앙에 겹침
+                JPanel lockedCenter = new JPanel();
+                lockedCenter.setLayout(new OverlayLayout(lockedCenter));
                 lockedCenter.setOpaque(false);
-                lockedCenter.add(sDesc, BorderLayout.NORTH);
+
                 JLabel lockLabel = new JLabel(getLockIcon(), SwingConstants.CENTER);
                 lockLabel.setToolTipText("STAGE " + (stageNum - 1) + "을(를) 클리어하면 열립니다");
-                lockedCenter.add(lockLabel, BorderLayout.CENTER);
+                lockLabel.setAlignmentX(0.5f);
+                lockLabel.setAlignmentY(0.5f);
+
+                lockedCenter.add(sDesc);
+                lockedCenter.add(lockLabel);
                 stageCard.add(lockedCenter, BorderLayout.CENTER);
             }
             stageCard.add(btnWrapper, BorderLayout.SOUTH);

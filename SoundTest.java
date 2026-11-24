@@ -62,6 +62,34 @@ public class SoundTest {
         SoundManager.playBgm("sounds/없는파일.wav");
         assert !SoundManager.isBgmPlaying() : "없는 파일은 재생 안 됨 (예외 없이)";
 
+        // 5. 음량 조절 (0=음소거, 50, 범위 보정, 100 복구)
+        assert SoundManager.getBgmVolume() == 100 : "기본 브금 음량은 100이어야 함";
+        assert SoundManager.getEffectVolume() == 100 : "기본 효과음 음량은 100이어야 함";
+
+        SoundManager.playBgm(SoundManager.BGM_MAIN);
+        SoundManager.setBgmVolume(0);
+        assert SoundManager.getBgmVolume() == 0 : "브금 0으로 내리면 0이어야 함";
+        assert SoundManager.isBgmPlaying() : "음소거 중에도 브금 클립 상태는 유지되어야 함";
+        Thread.sleep(200);
+        SoundManager.setBgmVolume(50);
+        assert SoundManager.getBgmVolume() == 50 : "브금 다시 올리면 50이어야 함";
+        SoundManager.setBgmVolume(-10);
+        assert SoundManager.getBgmVolume() == 0 : "음수는 0으로 보정되어야 함";
+        SoundManager.setBgmVolume(150);
+        assert SoundManager.getBgmVolume() == 100 : "100 초과는 100으로 보정되어야 함";
+        SoundManager.stopBgm();
+
+        SoundManager.setEffectVolume(0);
+        assert SoundManager.getEffectVolume() == 0 : "효과음 0으로 내리면 0이어야 함";
+        SoundManager.playClick(); // 음소거 상태에서는 소리가 나지 않음
+        SoundManager.setEffectVolume(50);
+        assert SoundManager.getEffectVolume() == 50 : "효과음 50으로 올리면 50이어야 함";
+        SoundManager.playClick();
+        SoundManager.setEffectVolume(-5);
+        assert SoundManager.getEffectVolume() == 0 : "효과음 음수는 0으로 보정되어야 함";
+        SoundManager.setEffectVolume(200);
+        assert SoundManager.getEffectVolume() == 100 : "효과음 100 초과는 100으로 보정되어야 함";
+
         System.out.println("OK: 소리 점검 통과");
         System.exit(0);
     }
