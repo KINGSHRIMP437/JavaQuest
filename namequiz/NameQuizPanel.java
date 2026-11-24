@@ -22,7 +22,8 @@ public class NameQuizPanel extends JPanel {
     private static final Color BG = new Color(20, 25, 45);
     private static final Color MINT = new Color(0, 200, 190);
     private static final int QUIZ_SECONDS = 15;
-    private static final int IMG_W = 360, IMG_H = 200;
+    private static final int IMG_W = 520, IMG_H = 340; // 사진 최소 희망 크기 (실제로는 남는 공간만큼 커짐)
+    private static final int RIGHT_W = 440;            // 오른쪽 질문·입력 영역 너비
     private static NameQuizManager manager; // 파일은 처음 한 번만 읽음
 
     private final Listener listener;
@@ -62,19 +63,29 @@ public class NameQuizPanel extends JPanel {
         timeBar.setForeground(MINT);
         box.add(timeBar, BorderLayout.NORTH);
 
+        // 왼쪽: 사진 (남는 공간을 모두 차지해 크게 표시)
         imageLabel.setPreferredSize(new Dimension(IMG_W, IMG_H));
         imageLabel.setForeground(Color.LIGHT_GRAY);
         imageLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 15));
+        imageLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         box.add(imageLabel, BorderLayout.CENTER);
 
-        JPanel bottom = new JPanel(new BorderLayout(8, 6));
-        bottom.setOpaque(false);
-        bottom.setBorder(BorderFactory.createEmptyBorder(10, 20, 15, 20));
-        guide.setForeground(Color.WHITE);
-        guide.setFont(new Font("맑은 고딕", Font.BOLD, 18));
-        bottom.add(guide, BorderLayout.NORTH);
+        // 오른쪽: 질문 · 정답 입력칸 · 결과 (세로 가운데 정렬)
+        JPanel right = new JPanel(new GridBagLayout());
+        right.setOpaque(false);
+        right.setPreferredSize(new Dimension(RIGHT_W, 0));
+        right.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 25));
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridx = 0;
+        gc.weightx = 1;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.insets = new Insets(8, 0, 8, 0);
 
-        input.setFont(new Font("맑은 고딕", Font.PLAIN, 18));
+        guide.setForeground(Color.WHITE);
+        guide.setFont(new Font("맑은 고딕", Font.BOLD, 26)); // 상식 퀴즈 문제 글씨와 같은 크기
+        right.add(guide, gc);
+
+        input.setFont(new Font("맑은 고딕", Font.PLAIN, 26)); // 상식 퀴즈 문제 글씨와 같은 크기
         input.setForeground(Color.WHITE);
         input.setBackground(new Color(25, 30, 50));
         input.setCaretColor(Color.WHITE);
@@ -91,12 +102,12 @@ public class NameQuizPanel extends JPanel {
             if (!finished && !input.getText().trim().isEmpty())
                 finish(current.isCorrect(input.getText()), false);
         });
-        bottom.add(input, BorderLayout.CENTER);
+        right.add(input, gc);
 
         resultLabel.setHorizontalAlignment(SwingConstants.CENTER);
         resultLabel.setFont(new Font("맑은 고딕", Font.BOLD, 26));
-        bottom.add(resultLabel, BorderLayout.SOUTH);
-        box.add(bottom, BorderLayout.SOUTH);
+        right.add(resultLabel, gc);
+        box.add(right, BorderLayout.EAST);
 
         add(box, BorderLayout.CENTER);
 
@@ -111,7 +122,7 @@ public class NameQuizPanel extends JPanel {
     public int prepare(int stageNo) {
         if (manager == null) manager = new NameQuizManager(DIR + "name_quiz.txt");
         stop();
-        guide.setText(promptFor(stageNo) + " (입력 후 Enter)");
+        guide.setText(guideHtml(promptFor(stageNo), "입력 후 Enter"));
         quizzes = pickRandom(manager.findByStage(stageNo), QUIZ_COUNT, random);
         index = 0;
         return quizzes.size();
@@ -132,7 +143,7 @@ public class NameQuizPanel extends JPanel {
         current = quizzes.get(index++);
         finished = false;
 
-        guide.setText(promptFor(current.getStage()) + "  (" + index + "/" + quizzes.size() + ")  입력 후 Enter");
+        guide.setText(guideHtml(promptFor(current.getStage()), "(" + index + "/" + quizzes.size() + ")  입력 후 Enter"));
         resultLabel.setText(" ");
         showImage(current.getImagePath());
         input.setText("");
@@ -190,6 +201,12 @@ public class NameQuizPanel extends JPanel {
     public static int bossHpFor(int stageNo, int quizCount) {
         int hp = (stageNo >= 1 && stageNo <= BOSS_HP.length) ? BOSS_HP[stageNo - 1] : quizCount;
         return Math.min(hp, quizCount); // 문제 수보다 많으면 이길 수 없으므로
+    }
+
+    // 질문은 크게, 진행·안내 문구는 아랫줄에 작게 (오른쪽 영역 너비에 맞춤)
+    private static String guideHtml(String prompt, String sub) {
+        return "<html>" + prompt + "<br><span style='font-size:16pt;font-weight:normal;color:#b0b0b0'>"
+                + sub + "</span></html>";
     }
 
     public static String promptFor(int stageNo) {
