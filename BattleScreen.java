@@ -287,7 +287,10 @@ public class BattleScreen extends JPanel {
         quizContent.setBackground(new Color(20, 25, 45));
 
         timeBar.setForeground(BORDER_COLOR);
-        quizContent.add(timeBar, BorderLayout.NORTH);
+        // 시간 막대·문제는 위에 필요한 만큼, 선택지는 남는 공간을 채움 (창이 작으면 선택지가 줄어듦)
+        JPanel quizHeader = new JPanel(new BorderLayout());
+        quizHeader.setOpaque(false);
+        quizHeader.add(timeBar, BorderLayout.NORTH);
 
         questionText.setEditable(false);
         questionText.setLineWrap(true);
@@ -296,7 +299,8 @@ public class BattleScreen extends JPanel {
         questionText.setForeground(Color.WHITE);
         questionText.setBackground(new Color(20, 25, 45));
         questionText.setBorder(BorderFactory.createEmptyBorder(20, 20, 15, 20));
-        quizContent.add(questionText, BorderLayout.CENTER);
+        quizHeader.add(questionText, BorderLayout.CENTER);
+        quizContent.add(quizHeader, BorderLayout.NORTH);
 
         JPanel choiceGrid = new JPanel(new GridLayout(2, 2, 12, 12));
         choiceGrid.setOpaque(false);
@@ -313,7 +317,7 @@ public class BattleScreen extends JPanel {
             choiceBtns[i].addActionListener(e -> answer(idx));
             choiceGrid.add(choiceBtns[i]);
         }
-        quizContent.add(choiceGrid, BorderLayout.SOUTH);
+        quizContent.add(choiceGrid, BorderLayout.CENTER);
         quizPanel.add(quizContent, BorderLayout.CENTER);
 
         dodgeGamePanel = new DodgeGamePanel(

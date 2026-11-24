@@ -26,6 +26,7 @@ public class GameFrame extends JFrame {
     public GameFrame() {
         setTitle("JavaQuest - RPG & Quiz");
         setSize(1050, 850);
+        setMinimumSize(new Dimension(900, 760)); // 이보다 작으면 전투화면 선택지가 너무 얇아짐
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
