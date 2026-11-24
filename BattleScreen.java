@@ -59,6 +59,16 @@ public class BattleScreen extends JPanel {
     private JLabel dodgeStatus = new JLabel(" ");   // 탄막 필드 아래 상태 글자 (주제·스테이지·피격 수)
     private NameQuizPanel nameQuizPanel; // 이름 맞추기 주제 전용 이미지 퀴즈
 
+    // ---------- 아이템 ----------
+    private static final int INVINCIBLE_MS = 3000;   // 무적 시간
+    private static final Color GOLD = new Color(255, 215, 0);
+    private static final String[] SHORT_NAMES = {"무적", "완충", "초기화"};   // 아이템 칸에 쓰는 짧은 이름
+    private Inventory inventory = new Inventory();
+    private JLabel[] itemLabels = new JLabel[Inventory.TYPES];   // 하트 줄 오른쪽 아이템 칸
+    private JButton[] itemBtns = new JButton[Inventory.TYPES];   // 아이템 메뉴 버튼
+    private Timer invincibleTimer;                               // 무적 남은 시간 갱신 (0.1초)
+    private Timer itemMsgTimer;                                  // 탄막 중 사용 결과 문구를 잠깐 보였다 되돌림
+
     public BattleScreen() {
         setPreferredSize(new Dimension(1050, 800));
         setBackground(BG_COLOR);
@@ -71,6 +81,18 @@ public class BattleScreen extends JPanel {
 
         timer = new Timer(100, e -> tick());
         flashTimer = new Timer(100, e -> flashStep());
+        invincibleTimer = new Timer(100, e -> {
+            updateStatus();
+            if (!engine.isInvincible()) invincibleTimer.stop();   // 무적이 끝나면 원래대로 돌리고 멈춤
+        });
+        itemMsgTimer = new Timer(1500, e -> dodgeStatus.setText(dodgeGamePanel.getStatusText()));
+        itemMsgTimer.setRepeats(false);
+    }
+
+    // GameFrame이 게임 내내 쓰는 보관함을 전달
+    public void setInventory(Inventory inventory) {
+        this.inventory = inventory != null ? inventory : new Inventory();
+        updateStatus();
     }
 
     public void startBattle(String topicName, Stage stage, List<QuizItem> questions) {
@@ -89,6 +111,7 @@ public class BattleScreen extends JPanel {
         }
         engine.startBattle(bossName, bossHp, count);
         timer.stop();
+        invincibleTimer.stop();
         lastHearts = engine.getPlayerHearts();
 
         stageLabel.setText("STAGE " + stageNo + " · " + topicName);
@@ -299,6 +322,19 @@ public class BattleScreen extends JPanel {
         );
         dodgeGamePanel.setPreferredSize(new Dimension(800, 380));
         dodgeGamePanel.setOpaque(true);
+        // 탄막 중 숫자 키 1/2/3 (윗줄·키패드)으로 아이템 사용 (기존 방향키 리스너는 그대로)
+        dodgeGamePanel.addKeyListener(new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyPressed(java.awt.event.KeyEvent e) {
+                int k = e.getKeyCode();
+                int type = k >= java.awt.event.KeyEvent.VK_1 && k <= java.awt.event.KeyEvent.VK_3 ? k - java.awt.event.KeyEvent.VK_1
+                        : k >= java.awt.event.KeyEvent.VK_NUMPAD1 && k <= java.awt.event.KeyEvent.VK_NUMPAD3 ? k - java.awt.event.KeyEvent.VK_NUMPAD1
+                        : -1;
+                if (type < 0 || !dodgeGamePanel.isShowing() || engine.isWin() || engine.isLose()) return;
+                dodgeStatus.setText(useItem(type));
+                itemMsgTimer.restart();
+            }
+        });
 
         // 탄막 패널은 최대 800x380, 공간이 모자라면 남은 크기에 맞춰 줄여 가운데 배치
         // - 창이 크다고 늘리지 않음: 필드가 커지면 패턴 난이도가 달라짐
@@ -345,13 +381,27 @@ public class BattleScreen extends JPanel {
         bottomWrap.setLayout(new BoxLayout(bottomWrap, BoxLayout.Y_AXIS));
 
         heartRow.setBackground(BG_COLOR);
-        heartRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         for (int i = 0; i < MAX_HEARTS; i++) {
             hearts[i] = new JLabel("♥");
             hearts[i].setFont(new Font("Dialog", Font.BOLD, 32));
             heartRow.add(hearts[i]);
         }
-        bottomWrap.add(heartRow);
+        // 하트 줄 오른쪽에 아이템 칸 3개 (투명: 하트 깜빡임 배경과 어울리게)
+        JPanel itemRow = new JPanel(new GridBagLayout());
+        itemRow.setOpaque(false);
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.insets = new Insets(0, 16, 0, 0);
+        for (int i = 0; i < Inventory.TYPES; i++) {
+            itemLabels[i] = new JLabel();
+            itemLabels[i].setFont(new Font("맑은 고딕", Font.BOLD, 16));
+            itemRow.add(itemLabels[i], gc);
+        }
+        JPanel heartLine = new JPanel(new BorderLayout());
+        heartLine.setOpaque(false);
+        heartLine.setAlignmentX(Component.LEFT_ALIGNMENT);
+        heartLine.add(heartRow, BorderLayout.WEST);
+        heartLine.add(itemRow, BorderLayout.EAST);
+        bottomWrap.add(heartLine);
         bottomWrap.add(Box.createVerticalStrut(4));
 
         bottomCards.setOpaque(false);
@@ -359,6 +409,7 @@ public class BattleScreen extends JPanel {
         bottomCards.setPreferredSize(new Dimension(900, 80));
         
         bottomCards.add(makeCommandPanel(), "cmd");
+        bottomCards.add(makeItemPanel(), "items");
         bottomCards.add(makeSingleButtonPanel("계속", () -> startEnemyTurn()), "continue");
         
         JPanel waitPanel = new JPanel();
@@ -406,11 +457,85 @@ public class BattleScreen extends JPanel {
             } else if (i == 2) { // 도망: 패배 처리 없이 스테이지 맵으로
                 b.addActionListener(e -> { if (listener != null) listener.onBattleEnd(false); });
             } else {
-                b.addActionListener(e -> messageArea.setText("준비 중인 기능입니다."));
+                b.addActionListener(e -> {
+                    messageArea.setText("사용할 아이템을 고르세요.");
+                    showCard(bottomCards, "items");
+                });
             }
             p.add(b);
         }
         return p;
+    }
+
+    // 아이템 메뉴: [무적] [체력 완충] [문제 개수 초기화] [← 뒤로]
+    private JPanel makeItemPanel() {
+        JPanel p = new JPanel(new GridLayout(1, 4, 15, 0));
+        p.setOpaque(false);
+        for (int i = 0; i < Inventory.TYPES; i++) {
+            final int type = i;
+            itemBtns[i] = styledButton("");
+            itemBtns[i].addActionListener(e -> {
+                messageArea.setText(useItem(type));   // 결과 문구 표시 → useItem 안에서 막대도 갱신
+            });
+            p.add(itemBtns[i]);
+        }
+        JButton back = styledButton("← 뒤로");
+        back.addActionListener(e -> showCard(bottomCards, "cmd"));
+        p.add(back);
+        return p;
+    }
+
+    private JButton styledButton(String text) {
+        JButton b = new JButton(text);
+        b.setBackground(new Color(25, 30, 50));
+        b.setForeground(Color.WHITE);
+        b.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        b.setOpaque(true);
+        b.setContentAreaFilled(true);
+        b.setPreferredSize(new Dimension(0, 70));
+        b.setBorder(new LineBorder(Color.GRAY, 2));
+        b.setFocusPainted(false);
+        return b;
+    }
+
+    // 아이템 사용 (메뉴·숫자 키 공통): 효과가 없으면 소모하지 않음. 결과 문구를 반환
+    private String useItem(int type) {
+        String name = Inventory.name(type);
+        if (!inventory.has(type)) return name + "이(가) 없어요.";
+        String result;
+        switch (type) {
+            case Inventory.INVINCIBLE:
+                if (!engine.activateInvincible(INVINCIBLE_MS)) return "이미 무적 중이에요.";
+                invincibleTimer.restart();
+                result = "무적! 3초 동안 탄막에 맞아도 하트가 줄지 않아요.";
+                break;
+            case Inventory.HEAL_FULL:
+                if (!engine.healFull()) return "이미 하트가 가득 찼어요.";
+                result = "체력이 가득 찼어요!";
+                break;
+            default:
+                if (!engine.resetAttacks()) return "아직 공격 횟수를 다 안 썼어요.";
+                result = "공격 횟수가 " + engine.getAttacksLeft() + "회로 돌아왔어요!";
+        }
+        inventory.use(type);
+        updateStatus();
+        return result;
+    }
+
+    // 아이템 칸(하트 줄 오른쪽)과 메뉴 버튼 갱신: 개수 0이면 흐리게, 무적 중이면 1번 칸을 금색 남은 시간으로
+    private void updateItemViews() {
+        for (int i = 0; i < Inventory.TYPES; i++) {
+            int n = inventory.count(i);
+            boolean inv = i == Inventory.INVINCIBLE && engine.isInvincible();
+            itemLabels[i].setText(inv ? String.format("무적 %.1f초", engine.getInvincibleMsLeft() / 1000.0)
+                    : (i + 1) + " " + SHORT_NAMES[i] + " ×" + n);
+            itemLabels[i].setForeground(inv ? GOLD : n == 0 ? Color.DARK_GRAY : Color.WHITE);
+
+            String line2 = "×" + n + (i == Inventory.INVINCIBLE ? " · 탄막 중에만 사용" : "");
+            itemBtns[i].setText("<html><center>" + (i + 1) + " " + Inventory.name(i) + "<br>" + line2 + "</center></html>");
+            itemBtns[i].setEnabled(i != Inventory.INVINCIBLE);   // 무적은 탄막 중 키(1)로만 사용
+            itemBtns[i].setForeground(n == 0 ? Color.GRAY : Color.WHITE);
+        }
     }
 
     private JPanel makeSingleButtonPanel(String text, Runnable action) {
@@ -520,6 +645,8 @@ public class BattleScreen extends JPanel {
 
     private void showEnd(boolean win, String text, String reason) {
         won = win;
+        invincibleTimer.stop();
+        itemMsgTimer.stop();
         if (win) {
             // 승리: 정답·해설과 "확인" 버튼 없이, 보스 베는 연출이 끝나면 맵으로 → 클리어 창(또는 축하 화면)
             // 연출 동안에는 보스와 처치 메시지만 보여 주고 버튼은 숨김 (선택지 연타로 두 번 끝나지 않게)
@@ -556,9 +683,11 @@ public class BattleScreen extends JPanel {
         bossHpBar.setString("HP: " + left + " / " + engine.getBossMaxHp());
         turnLabel.setText("남은 공격: " + engine.getAttacksLeft() + "회");
         
+        Color heartColor = engine.isInvincible() ? GOLD : Color.RED;   // 무적 중에는 금색 하트
         for (int i = 0; i < MAX_HEARTS; i++) {
-            hearts[i].setForeground(i < engine.getPlayerHearts() ? Color.RED : Color.GRAY);
+            hearts[i].setForeground(i < engine.getPlayerHearts() ? heartColor : Color.GRAY);
         }
+        updateItemViews();
         // 별 3개로 시작해서 하트가 줄면 같이 줄어듦 (클리어하면 이 별점이 기록됨)
         int stars = BattleEngine.starsFor(engine.getPlayerHearts());
         stageStarsLabel.setText("★".repeat(stars) + "☆".repeat(3 - stars));
