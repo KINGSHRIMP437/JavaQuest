@@ -17,27 +17,20 @@ public class StageClearPopup extends JComponent {
     private final int stageNo;
     private final int stars;
     private final int unlockedStage;   // 이번에 새로 열린 스테이지 (없으면 0)
-    private final String rewardText;   // 아이템 보상 문구 (없으면 null)
     private final long start = System.currentTimeMillis();
     private final Timer anim;
     private boolean closed;
 
     // root 창 위에 클리어 창을 띄움
     public static StageClearPopup show(JRootPane root, int stageNo, int stars, int unlockedStage) {
-        return show(root, stageNo, stars, unlockedStage, null);
-    }
-
-    // 아이템 보상 문구(null이면 없음)를 한 줄 더 그리는 버전
-    public static StageClearPopup show(JRootPane root, int stageNo, int stars, int unlockedStage, String rewardText) {
-        StageClearPopup p = new StageClearPopup(stageNo, stars, unlockedStage, rewardText);
+        StageClearPopup p = new StageClearPopup(stageNo, stars, unlockedStage);
         root.setGlassPane(p);
         p.setVisible(true);
         p.requestFocusInWindow();
         return p;
     }
 
-    private StageClearPopup(int stageNo, int stars, int unlockedStage, String rewardText) {
-        this.rewardText = rewardText;
+    private StageClearPopup(int stageNo, int stars, int unlockedStage) {
         this.stageNo = stageNo;
         this.stars = stars;
         this.unlockedStage = unlockedStage;
@@ -95,8 +88,7 @@ public class StageClearPopup extends JComponent {
         g2.setColor(new Color(0, 0, 0, (int) (150 * alpha)));
         g2.fillRect(0, 0, getWidth(), getHeight());
 
-        int w = rewardText != null ? 540 : 440;
-        int h = (unlockedStage > 0 ? 250 : 210) + (rewardText != null ? 40 : 0);
+        int w = 440, h = unlockedStage > 0 ? 250 : 210;
         double cx = getWidth() / 2.0, cy = getHeight() / 2.0;
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
         g2.translate(cx, cy);
@@ -127,10 +119,6 @@ public class StageClearPopup extends JComponent {
 
         if (unlockedStage > 0) {
             drawCentered(g2, "STAGE " + unlockedStage + " 열림!", new Font("맑은 고딕", Font.BOLD, 22), new Color(100, 255, 150), y + 55);
-            y += 40;
-        }
-        if (rewardText != null) {
-            drawCentered(g2, rewardText, new Font("맑은 고딕", Font.BOLD, 15), new Color(255, 215, 0), y + 55);
         }
         g2.dispose();
     }

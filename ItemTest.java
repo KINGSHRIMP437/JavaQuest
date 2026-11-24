@@ -40,11 +40,6 @@ public class ItemTest {
         for (int t = 0; t < Inventory.TYPES; t++) assert inv.count(t) == 1 && inv.has(t) : "시작 1개";
         assert inv.use(Inventory.INVINCIBLE) && inv.count(Inventory.INVINCIBLE) == 0;
         assert !inv.has(Inventory.INVINCIBLE) && !inv.use(Inventory.INVINCIBLE) : "0개면 사용 불가";
-        for (int i = 0; i < 5; i++) inv.addReward();
-        for (int t = 0; t < Inventory.TYPES; t++) assert inv.count(t) == Inventory.MAX_PER_ITEM : "최대 3개";
-        inv.use(Inventory.HEAL_FULL);
-        inv.addReward();
-        assert inv.count(Inventory.HEAL_FULL) == Inventory.MAX_PER_ITEM;
         assert Inventory.name(Inventory.RESET_ATTACKS).equals("문제 개수 초기화");
 
         System.out.println("ItemTest 모두 통과");

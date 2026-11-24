@@ -89,12 +89,6 @@ public class BattleScreen extends JPanel {
         itemMsgTimer.setRepeats(false);
     }
 
-    // GameFrame이 게임 내내 쓰는 보관함을 전달
-    public void setInventory(Inventory inventory) {
-        this.inventory = inventory != null ? inventory : new Inventory();
-        updateStatus();
-    }
-
     public void startBattle(String topicName, Stage stage, List<QuizItem> questions) {
         String topicId = stage.getTopic();
         String bossName = stage.getBossName();
@@ -110,6 +104,7 @@ public class BattleScreen extends JPanel {
             if (n > 0) { count = n; bossHp = NameQuizPanel.bossHpFor(stageNo, n); }
         }
         engine.startBattle(bossName, bossHp, count);
+        inventory = new Inventory();   // 전투마다 아이템 1개씩 새로 지급 (누적 없음)
         timer.stop();
         invincibleTimer.stop();
         lastHearts = engine.getPlayerHearts();
@@ -479,7 +474,9 @@ public class BattleScreen extends JPanel {
             final int type = i;
             itemBtns[i] = styledButton("");
             itemBtns[i].addActionListener(e -> {
-                messageArea.setText(useItem(type));   // 결과 문구 표시 → useItem 안에서 막대도 갱신
+                // 무적은 탄막 중 키(1)로만 사용 (버튼을 비활성으로 두면 글자색이 달라져서 문구로 안내)
+                messageArea.setText(type == Inventory.INVINCIBLE ? "무적은 탄막 중에 숫자 키 1로 사용해요."
+                        : useItem(type));   // 결과 문구 표시 → useItem 안에서 막대도 갱신
             });
             p.add(itemBtns[i]);
         }
@@ -537,7 +534,6 @@ public class BattleScreen extends JPanel {
 
             String line2 = "×" + n + (i == Inventory.INVINCIBLE ? " · 탄막 중에만 사용" : "");
             itemBtns[i].setText("<html><center>" + (i + 1) + " " + Inventory.name(i) + "<br>" + line2 + "</center></html>");
-            itemBtns[i].setEnabled(i != Inventory.INVINCIBLE);   // 무적은 탄막 중 키(1)로만 사용
             itemBtns[i].setForeground(n == 0 ? Color.GRAY : Color.WHITE);
         }
     }
