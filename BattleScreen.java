@@ -62,10 +62,10 @@ public class BattleScreen extends JPanel {
     // ---------- 아이템 ----------
     private static final int INVINCIBLE_MS = 3000;   // 무적 시간
     private static final Color GOLD = new Color(255, 215, 0);
-    private static final String[] SHORT_NAMES = {"무적", "완충", "초기화"};   // 아이템 칸에 쓰는 짧은 이름
     private Inventory inventory = new Inventory();
-    private JLabel[] itemLabels = new JLabel[Inventory.TYPES];   // 하트 줄 오른쪽 아이템 칸
+    private ItemIcon.Slot[] itemSlots = new ItemIcon.Slot[Inventory.TYPES];   // 하트 줄 오른쪽 아이템 칸
     private JButton[] itemBtns = new JButton[Inventory.TYPES];   // 아이템 메뉴 버튼
+    private ItemIcon[] itemBtnIcons = new ItemIcon[Inventory.TYPES];
     private Timer invincibleTimer;                               // 무적 남은 시간 갱신 (0.1초)
     private Timer itemMsgTimer;                                  // 탄막 중 사용 결과 문구를 잠깐 보였다 되돌림
 
@@ -389,11 +389,10 @@ public class BattleScreen extends JPanel {
         JPanel itemRow = new JPanel(new GridBagLayout());
         itemRow.setOpaque(false);
         GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(0, 16, 0, 0);
+        gc.insets = new Insets(0, 4, 0, 0);
         for (int i = 0; i < Inventory.TYPES; i++) {
-            itemLabels[i] = new JLabel();
-            itemLabels[i].setFont(new Font("맑은 고딕", Font.BOLD, 16));
-            itemRow.add(itemLabels[i], gc);
+            itemSlots[i] = new ItemIcon.Slot(i);
+            itemRow.add(itemSlots[i], gc);
         }
         JPanel heartLine = new JPanel(new BorderLayout());
         heartLine.setOpaque(false);
@@ -473,6 +472,11 @@ public class BattleScreen extends JPanel {
         for (int i = 0; i < Inventory.TYPES; i++) {
             final int type = i;
             itemBtns[i] = styledButton("");
+            itemBtnIcons[i] = new ItemIcon(i, 30);
+            itemBtns[i].setIcon(itemBtnIcons[i]);
+            itemBtns[i].setVerticalTextPosition(SwingConstants.BOTTOM);
+            itemBtns[i].setHorizontalTextPosition(SwingConstants.CENTER);
+            itemBtns[i].setIconTextGap(2);
             itemBtns[i].addActionListener(e -> {
                 // 무적은 탄막 중 키(1)로만 사용 (버튼을 비활성으로 두면 글자색이 달라져서 문구로 안내)
                 messageArea.setText(type == Inventory.INVINCIBLE ? "무적은 탄막 중에 숫자 키 1로 사용해요."
@@ -528,13 +532,13 @@ public class BattleScreen extends JPanel {
         for (int i = 0; i < Inventory.TYPES; i++) {
             int n = inventory.count(i);
             boolean inv = i == Inventory.INVINCIBLE && engine.isInvincible();
-            itemLabels[i].setText(inv ? String.format("무적 %.1f초", engine.getInvincibleMsLeft() / 1000.0)
-                    : (i + 1) + " " + SHORT_NAMES[i] + " ×" + n);
-            itemLabels[i].setForeground(inv ? GOLD : n == 0 ? Color.DARK_GRAY : Color.WHITE);
+            itemSlots[i].set(inv ? String.format("%.1fs", engine.getInvincibleMsLeft() / 1000.0) : String.valueOf(n),
+                    n == 0 && !inv, inv);
 
-            String line2 = "×" + n + (i == Inventory.INVINCIBLE ? " · 탄막 중에만 사용" : "");
-            itemBtns[i].setText("<html><center>" + (i + 1) + " " + Inventory.name(i) + "<br>" + line2 + "</center></html>");
+            itemBtnIcons[i].setDim(n == 0);
+            itemBtns[i].setText(Inventory.name(i) + " ×" + n);
             itemBtns[i].setForeground(n == 0 ? Color.GRAY : Color.WHITE);
+            itemBtns[i].repaint();
         }
     }
 
