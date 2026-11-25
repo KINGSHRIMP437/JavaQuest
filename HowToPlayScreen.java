@@ -3,12 +3,14 @@ import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.geom.Path2D;
 
-public class HowToPlayScreen extends JPanel {
+// 배경의 먼지 입자는 DungeonBackground가 그린다 (타이틀·주제 선택·스테이지 맵과 같은 배경)
+public class HowToPlayScreen extends DungeonBackground {
     private static final Color BG_COLOR = new Color(15, 20, 35);
     private static final Color CARD_BG = new Color(25, 30, 50);
     private static final Color BORDER_COLOR = new Color(0, 200, 190);
 
     public HowToPlayScreen(Runnable onBackToTitle) {
+        super(false);   // 먼지 입자만 (출구 빛은 타이틀 화면에서만)
         setPreferredSize(new Dimension(1050, 800));
         setBackground(BG_COLOR);
         setLayout(new BorderLayout(20, 20));
@@ -19,13 +21,9 @@ public class HowToPlayScreen extends JPanel {
         titleLabel.setForeground(Color.WHITE);
         titleLabel.setFont(new Font("맑은 고딕", Font.BOLD, 30));
 
-        JButton backBtn = new JButton("Title");
-        backBtn.setBackground(CARD_BG);
-        backBtn.setForeground(Color.YELLOW);
-        backBtn.setFont(new Font("맑은 고딕", Font.BOLD, 14));
-        backBtn.setBorder(new LineBorder(Color.GRAY, 1));
-        backBtn.setFocusPainted(false);
-        backBtn.setPreferredSize(new Dimension(63, 36));
+        // 주제 선택 화면의 `← Title` 버튼과 같은 모양 (둥근 모서리 + 마우스 올리면 민트빛)
+        JqButton backBtn = new JqButton("← Title", UiTheme.YELLOW, UiTheme.GRAY_BORDER, 1, 14);
+        backBtn.setPreferredSize(new Dimension(100, 36));
         backBtn.addActionListener(e -> onBackToTitle.run());
 
         JPanel backWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -34,7 +32,7 @@ public class HowToPlayScreen extends JPanel {
 
         JPanel rightSpacer = new JPanel();
         rightSpacer.setOpaque(false);
-        rightSpacer.setPreferredSize(new Dimension(63, 36));
+        rightSpacer.setPreferredSize(new Dimension(100, 36));   // 왼쪽 버튼과 같은 너비 → 제목이 정중앙
 
         JPanel topPanel = new JPanel(new BorderLayout());
         topPanel.setOpaque(false);
@@ -88,12 +86,10 @@ public class HowToPlayScreen extends JPanel {
     }
 
     private JPanel createInfoCard(String heading, JComponent iconPanel, String bodyHtml) {
-        JPanel card = new JPanel(new BorderLayout(0, 16));
-        card.setBackground(CARD_BG);
-        card.setBorder(BorderFactory.createCompoundBorder(
-            new LineBorder(BORDER_COLOR, 2),
-            BorderFactory.createEmptyBorder(32, 20, 32, 20)
-        ));
+        // 모서리가 둥근 카드 (배경·테두리는 JqCard가 그림, 스테이지 카드와 같은 둥글기 16)
+        JqCard card = new JqCard(CARD_BG, BORDER_COLOR, 2, 16);
+        card.setLayout(new BorderLayout(0, 16));
+        card.setBorder(BorderFactory.createEmptyBorder(32, 20, 32, 20));
 
         JLabel headLabel = new JLabel(heading, SwingConstants.CENTER);
         headLabel.setForeground(Color.YELLOW);
