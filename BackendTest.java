@@ -29,9 +29,10 @@ public class BackendTest {
         assert TitleScreen.nextCodeIndex(4, java.awt.event.KeyEvent.VK_UP) == 0 : "틀리면 처음부터";
         Stage common2 = DataLoader.loadStage("monsters.txt", "common", 2);
         assert common2.getBossName().equals("상식 백과사전 (Lv.2)");
-        assert common2.getHpPercent() == 50 : "HP 비율은 monsters.txt 값";
-        assert common2.getBossHp(10) == 5 : "일반 보스: 문제 10개 → HP 5";
-        assert sm.findStage("coding", 3).getBossHp(10) == 7 : "마지막 보스: 문제 10개 → HP 7";
+        assert common2.getHpPercent() == 40 : "HP 비율은 monsters.txt 값";
+        assert common2.getBossHp(10) == 4 : "중간 보스: 문제 10개 → HP 4";
+        assert sm.findStage("coding", 3).getBossHp(10) == 5 : "마지막 보스: 문제 10개 → HP 5";
+        assert sm.findStage("coding", 1).getBossHp(10) == 3 : "쉬움 보스: 문제 10개 → HP 3";
         assert common2.getBossHp(1) == 1 : "HP는 최소 1";
         assert DataLoader.loadStage("monsters.txt", "coding", 9).getBossName().equals("Unknown Boss");
 

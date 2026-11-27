@@ -207,8 +207,8 @@ public class NameQuizPanel extends JPanel {
         afterResult.start();
     }
 
-    // 스테이지별 보스 HP (정답 1개 = HP 1). 1스테이지 3, 2스테이지 4, 그 외는 문제 수(5)
-    private static final int[] BOSS_HP = {3, 4};
+    // 스테이지별 보스 HP (정답 1개 = HP 1)
+    private static final int[] BOSS_HP = {3, 4, 5};   // 쉬움 3 · 중간 4 · 어려움 5 (다른 주제와 같게)
 
     public static int bossHpFor(int stageNo, int quizCount) {
         int hp = (stageNo >= 1 && stageNo <= BOSS_HP.length) ? BOSS_HP[stageNo - 1] : quizCount;
