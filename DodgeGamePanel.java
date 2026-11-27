@@ -84,7 +84,10 @@ public class DodgeGamePanel extends JPanel {
     // 패턴 한 줄: {시작, HOMING, 0, 미사일 수, 유도 시간(ms), 빠르기(px/s), 방향 트는 빠르기(도/초)}. 여러 개면 필드 가운데 기준으로 고르게 나눈 방향에서 나옴
     private static final int HOMING = 17;
     private static final int HOMING_APPEAR = 600;    // 나타나서 출발까지 (깜빡임, 판정 없음)
-    private static final int HOMING_AFTER = 1500;    // 유도가 끝나고 곧게 날아가는 시간
+    private static final int HOMING_AFTER = 600;     // 유도가 끝나고 터지기 전까지 곧게 날아가는 시간
+    private static final int BLAST_MS = 500;         // 마지막에 미사일이 그 자리에서 터지는 시간 (커지는 동안만 판정)
+    private static final int BLAST_GROW = 250;       // 폭발이 다 커지는 시간
+    private static final int BLAST_R = 70;           // 폭발 반지름 (플레이어 20px)
     private static final int MISSILE_HIT_R = 16;     // 미사일 판정 반지름 (플레이어 20px)
     private static final int BOX_SIDE = 160;       // 줄어든 정사각형 한 변 (세로 4칸 → 칸 40px, 플레이어 20px)
     private static final int BOX_LANES = 4;
@@ -168,9 +171,9 @@ public class DodgeGamePanel extends JPanel {
             // 플로우 8 (약 6.7초): 조여 오는 원 3개가 연달아 (2.6초 동안 줄어듦, 1.56초 간격)
             new Flow(NO_SNOW,
                 new int[]{500, SHRINK, 0, 3, 2600, 160, 0, 0}),   // 쉬움: 틈 넓게
-            // 플로우 9 (약 6.1초): 유도 미사일 1개 (3초 동안 따라옴)
+            // 플로우 9 (약 6.1초): 유도 미사일 2개가 서로 반대편에서 (3초 동안 따라옴)
             new Flow(NO_SNOW,
-                new int[]{500, HOMING, 0, 1, 3000, 190, 110}),
+                new int[]{500, HOMING, 0, 2, 3000, 190, 130}),
         },
         {   // ---------- 2스테이지: 중간 (순차 사격 강화 SEQ2·유도 레이저 강화 RING2·상중하 강화 LANE3F + 회전 빔·작은 상자·4×4 포탑) ----------
             // 플로우 1 (약 9.6초): 위쪽 일제 사격 → 가로 순차가 위·아래에서 동시에 → 유도 레이저가 2개씩 4번
@@ -200,9 +203,9 @@ public class DodgeGamePanel extends JPanel {
             // 플로우 8 (약 6.6초): 조여 오는 원 4개가 연달아 (2.0초 동안 줄어듦, 1.2초 간격)
             new Flow(NO_SNOW,
                 new int[]{500, SHRINK, 0, 4, 2000, 130, 0, 0}),   // 중간: 틈 조금 좁게, 더 빨리 줄어듦
-            // 플로우 9 (약 6.1초): 유도 미사일 2개가 서로 반대편에서 (3초 동안 따라옴)
+            // 플로우 9 (약 6.1초): 유도 미사일 3개가 120도씩 떨어진 곳에서 (3초 동안 따라옴)
             new Flow(NO_SNOW,
-                new int[]{500, HOMING, 0, 2, 3000, 200, 115}),
+                new int[]{500, HOMING, 0, 3, 3000, 200, 135}),
         },
         {   // ---------- 3스테이지: 어려움 (중간 구성 + 상중하 어려움 LANE3H·유도 어려움 RING3·회전 빔 강화 SWEEPF·안전 원 ZONE) ----------
             // 플로우 1 (약 9.0초): 위쪽 일제 사격 → 가로 순차 강화 + 세로 순차 동시에
@@ -234,9 +237,9 @@ public class DodgeGamePanel extends JPanel {
             // 플로우 8 (약 8.0초): 조여 오는 원 5개가 연달아 (2.1초 동안 줄어듦, 1.26초 간격)
             new Flow(NO_SNOW,
                 new int[]{500, SHRINK, 0, 5, 2100, 120, 70, 110}),  // 어려움: 원이 돌아서 틈이 움직임 (원마다 초당 70~110도 무작위)
-            // 플로우 9 (약 6.1초): 유도 미사일 3개가 120도씩 떨어진 곳에서 (3초 동안 따라옴)
+            // 플로우 9 (약 6.1초): 유도 미사일 3개, 더 빠르고 훨씬 잘 꺾임 (3초 동안 따라옴)
             new Flow(NO_SNOW,
-                new int[]{500, HOMING, 0, 3, 3000, 210, 120}),
+                new int[]{500, HOMING, 0, 3, 3000, 240, 200}),
         },
     };
     private static final Color BEAM_COLOR = new Color(0, 230, 220);
@@ -635,7 +638,7 @@ public class DodgeGamePanel extends JPanel {
                    : e[3];
         if (e[1] == ZONE) return ZONE_WARN + e[3] * ZONE_LEG + FADE_MS;
         if (e[1] == SHRINK) return (int) ((e[3] - 1) * shrinkNext(e[4]) + e[4] + FADE_MS);
-        if (e[1] == HOMING) return HOMING_APPEAR + e[4] + HOMING_AFTER + FADE_MS;
+        if (e[1] == HOMING) return HOMING_APPEAR + e[4] + HOMING_AFTER + BLAST_MS + FADE_MS;
         if (e[1] == RING3) return (int) (SLIDE_MS + ring3Offset(e[4], e[3] - 1) + tm[0] + tm[1] + FADE_MS);
         int vDelay = e[1] == LANE3H && rounds <= 3 ? LANE3H_V_DELAY : 0;   // 마지막이 한 줄 발사면 늦게 나가는 세로 빔까지
         int fade = isGrid(e[1]) ? GRID_FADE_MS : FADE_MS;                   // 4×4 포탑은 더 천천히 사라짐
@@ -929,8 +932,14 @@ public class DodgeGamePanel extends JPanel {
         double dt = Math.min(60, t - m[n * 3]) / 1000.0;   // 렉이 있어도 한 번에 너무 멀리 가지 않게
         m[n * 3] = t;
         long fly = t - HOMING_APPEAR;   // 출발한 뒤 지난 시간
+        long blast = fly - homeMs - HOMING_AFTER;   // 터진 뒤 지난 시간 (음수 = 아직)
         for (int i = 0; i < n; i++) {
             double x = m[i * 3], y = m[i * 3 + 1], h = m[i * 3 + 2];
+            if (blast >= 0) {   // 마지막: 그 자리에서 폭발 (커지는 동안 폭발 안에 있으면 맞음)
+                double r = drawBlast(g2, x, y, blast);
+                if (blast < BLAST_GROW + 50 && Math.hypot(px - x, py - y) < r + 6) applyHit();
+                continue;
+            }
             if (fly >= 0) {
                 if (fly < homeMs) h = steer(h, Math.atan2(py - y, px - x), turn * dt);
                 x += Math.cos(h) * speed * dt;
@@ -940,6 +949,26 @@ public class DodgeGamePanel extends JPanel {
             }
             drawMissile(g2, x, y, h, fly < 0 ? ((t / 100) % 2 == 0 ? 0.9f : 0.35f) : 1f, t);
         }
+    }
+
+    // 네온 폭발: 흰 중심 → 민트 → 투명으로 퍼지는 빛 + 민트 고리. 반환값 = 지금 반지름
+    private double drawBlast(Graphics2D g2, double x, double y, long bt) {
+        double p = Math.min(1, bt / (double) BLAST_GROW);
+        double r = BLAST_R * (1 - Math.pow(1 - p, 3));               // 빠르게 커지다 멈춤
+        float fade = bt < BLAST_GROW ? 1f : Math.max(0f, 1f - (bt - BLAST_GROW) / (float) (BLAST_MS - BLAST_GROW));
+        if (r < 1 || fade <= 0) return r;
+        Composite old = g2.getComposite();
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fade));
+        g2.setPaint(new RadialGradientPaint(new java.awt.geom.Point2D.Double(x, y), (float) r,
+                new float[]{0f, 0.35f, 1f},
+                new Color[]{new Color(255, 255, 255, 230), new Color(0, 230, 220, 170), new Color(0, 230, 220, 0)}));
+        g2.fill(new java.awt.geom.Ellipse2D.Double(x - r, y - r, r * 2, r * 2));
+        g2.setColor(new Color(0, 230, 220, 220));
+        g2.setStroke(new BasicStroke(3f));
+        g2.draw(new java.awt.geom.Ellipse2D.Double(x - r, y - r, r * 2, r * 2));
+        g2.setStroke(new BasicStroke(1));
+        g2.setComposite(old);
+        return r;
     }
 
     // 필드 가운데에서 angle 방향으로 나가 벽에 닿는 점에서 inset만큼 안쪽
@@ -956,25 +985,52 @@ public class DodgeGamePanel extends JPanel {
         return h + Math.max(-maxTurn, Math.min(maxTurn, d));
     }
 
-    // 큰 미사일: 몸통(흰색) + 빨간 머리 + 꼬리 불꽃(깜빡임). 길이 약 60px
+    // 네온 미사일 (빔·구슬과 같은 민트 네온): 어두운 몸통 + 빛나는 민트 테두리 + 흰빛 머리 + 뒤로 흐려지는 민트 꼬리. 길이 약 60px
+    private static final java.awt.geom.Path2D MISSILE_SHAPE = missileShape();
+
+    private static java.awt.geom.Path2D missileShape() {
+        java.awt.geom.Path2D p = new java.awt.geom.Path2D.Double();
+        p.moveTo(22, 0);                       // 뾰족한 머리
+        p.curveTo(16, -6, 10, -7, 4, -7);
+        p.lineTo(-12, -7);
+        p.lineTo(-20, -14);                    // 위 날개
+        p.lineTo(-17, -6);
+        p.lineTo(-17, 6);
+        p.lineTo(-20, 14);                     // 아래 날개
+        p.lineTo(-12, 7);
+        p.lineTo(4, 7);
+        p.curveTo(10, 7, 16, 6, 22, 0);
+        p.closePath();
+        return p;
+    }
+
     private void drawMissile(Graphics2D g0, double x, double y, double h, float alpha, long t) {
         Graphics2D g = (Graphics2D) g0.create();
         g.translate(x, y);
         g.rotate(h);
         g.scale(1.4, 1.4);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-        int flame = 10 + (int) ((t / 40) % 3) * 4;
-        g.setColor(new Color(255, 150, 40, 200));
-        g.fill(new java.awt.geom.Ellipse2D.Double(-22 - flame, -6, flame + 6, 12));
-        g.setColor(new Color(255, 230, 120));
-        g.fill(new java.awt.geom.Ellipse2D.Double(-22 - flame / 2.0, -3, flame / 2.0 + 4, 6));
-        g.setColor(new Color(150, 160, 180));   // 날개
-        g.fillPolygon(new int[]{-20, -10, -14}, new int[]{-12, -6, 0}, 3);
-        g.fillPolygon(new int[]{-20, -10, -14}, new int[]{12, 6, 0}, 3);
-        g.setColor(new Color(235, 240, 248));   // 몸통
-        g.fill(new java.awt.geom.RoundRectangle2D.Double(-20, -8, 32, 16, 8, 8));
-        g.setColor(new Color(230, 50, 50));     // 머리
-        g.fill(new java.awt.geom.Arc2D.Double(4, -8, 20, 16, -90, 180, java.awt.geom.Arc2D.CHORD));
+        // 꼬리: 뒤로 갈수록 투명해지는 민트 빛줄기 (길이가 살짝 일렁임)
+        int tail = 34 + (int) ((t / 50) % 3) * 6;
+        g.setPaint(new GradientPaint(-17, 0, new Color(0, 230, 220, 190), -17 - tail, 0, new Color(0, 230, 220, 0)));
+        g.fill(new java.awt.geom.Path2D.Double() {{ moveTo(-17, -5); lineTo(-17 - tail, 0); lineTo(-17, 5); closePath(); }});
+        g.setPaint(new GradientPaint(-17, 0, new Color(230, 255, 255, 230), -17 - tail / 2f, 0, new Color(230, 255, 255, 0)));
+        g.fill(new java.awt.geom.Path2D.Double() {{ moveTo(-17, -2); lineTo(-17 - tail * 0.5, 0); lineTo(-17, 2); closePath(); }});
+        // 몸통: 번진 빛 → 어두운 속 → 민트 테두리
+        g.setStroke(new BasicStroke(7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(new Color(0, 230, 220, 55));
+        g.draw(MISSILE_SHAPE);
+        g.setColor(new Color(12, 22, 36));
+        g.fill(MISSILE_SHAPE);
+        g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(BEAM_COLOR);
+        g.draw(MISSILE_SHAPE);
+        // 가운데 빛나는 줄과 흰빛 머리
+        g.setColor(new Color(0, 230, 220, 160));
+        g.fill(new java.awt.geom.RoundRectangle2D.Double(-12, -1.5, 22, 3, 3, 3));
+        g.setColor(new Color(235, 255, 255));
+        g.fill(new java.awt.geom.Ellipse2D.Double(12, -2.5, 7, 5));
         g.dispose();
     }
 
