@@ -14,6 +14,11 @@ public class GameFrame extends JFrame {
     private StageMapScreen stageMapScreen;
     private BattleScreen battleScreen;
     private TopicClearScreen topicClearScreen;
+    private PrologueScreen prologueScreen;
+    private EscapeScreen escapeScreen;
+
+    private static final String[] TOPICS = {"coding", "common", "name"};
+    private boolean escapeShown = false;   // 던전 탈출 화면은 9개를 처음 다 깼을 때 한 번만
 
     private String selectedTopic = "coding";
     private int currentPlayingStage = 1; // 현재 플레이 중인 스테이지 번호 추적
@@ -31,7 +36,7 @@ public class GameFrame extends JFrame {
 
         // 1. 화면 인스턴스 생성
         titleScreen = new TitleScreen(
-            this::showTopicSelect,
+            this::showPrologue, // 게임 시작 → 프롤로그(2쪽) → 주제 선택
             () -> cardLayout.show(mainContainer, "howToPlay")
         );
 
@@ -50,6 +55,9 @@ public class GameFrame extends JFrame {
             () -> openStageMap(selectedTopic),
             this::showTopicSelect);
 
+        prologueScreen = new PrologueScreen(this::showTopicSelect);
+        escapeScreen = new EscapeScreen(this::showTopicSelect, () -> cardLayout.show(mainContainer, "title"));
+
         // 전투 종료 리스너 설정 (승리 시 별점 기록 및 맵 갱신)
         battleScreen.setBattleListener(win -> {
             if (!win) { // 패배·도망: 창 없이 맵으로
@@ -64,7 +72,14 @@ public class GameFrame extends JFrame {
             // 무적 모드(시연)는 기록이 안 남으니 STAGE 3을 깨면 바로 축하 화면
             if (isTopicAllCleared(selectedTopic) || (BattleEngine.isGodMode() && stageNo == 3)) {
                 // 마지막 스테이지까지 모두 클리어: 클리어 창 대신 축하 화면 (브금 멈추고 팡파르 → 끝나면 메인 브금)
-                showTopicClear(selectedTopic, stars);
+                // 주제 3개의 스테이지 9개를 처음으로 모두 깼으면, 마지막 주제는 주제 클리어 대신 던전 탈출 화면
+                // (무적 모드로 깬 판은 기록이 없어 세지 않음)
+                if (!escapeShown && isAllTopicsCleared()) {
+                    escapeShown = true;
+                    cardLayout.show(mainContainer, "escape");
+                } else {
+                    showTopicClear(selectedTopic, stars);
+                }
                 SoundManager.playEffectThenBgm(SoundManager.TOPIC_CLEAR, SoundManager.BGM_MAIN);
                 return;
             }
@@ -79,6 +94,8 @@ public class GameFrame extends JFrame {
         // 2. 컨테이너에 등록
         mainContainer.add(titleScreen, "title");
         mainContainer.add(howToPlayScreen, "howToPlay");
+        mainContainer.add(prologueScreen, "prologue");
+        mainContainer.add(escapeScreen, "escape");
         mainContainer.add(topicSelectScreen, "topicSelect");
         mainContainer.add(battleScreen, "battle");
         mainContainer.add(topicClearScreen, "topicClear");
@@ -119,6 +136,19 @@ public class GameFrame extends JFrame {
             if (!stageBestStars.containsKey(topicId + "_" + i)) return false;
         }
         return true;
+    }
+
+    // 모든 주제의 STAGE 1~3을 모두 클리어했는지 (= 던전 탈출)
+    private boolean isAllTopicsCleared() {
+        for (String t : TOPICS) {
+            if (!isTopicAllCleared(t)) return false;
+        }
+        return true;
+    }
+
+    private void showPrologue() {
+        prologueScreen.reset(); // 항상 1쪽부터
+        cardLayout.show(mainContainer, "prologue");
     }
 
     // 주제 올클리어 축하 화면 (스테이지별 최고 별점 요약)
