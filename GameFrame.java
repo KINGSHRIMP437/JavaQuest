@@ -1,5 +1,6 @@
 import java.awt.*;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import javax.swing.*;
@@ -19,6 +20,8 @@ public class GameFrame extends JFrame {
 
     private static final String[] TOPICS = {"coding", "common", "name"};
     private boolean escapeShown = false;   // 던전 탈출 화면은 9개를 처음 다 깼을 때 한 번만
+    // 시연용: 무적 모드에서 STAGE 3을 깬 주제 (실제 기록과 따로, 세 주제 모두 깨면 탈출 화면)
+    private final java.util.Set<String> godClearedTopics = new HashSet<>();
 
     private String selectedTopic = "coding";
     private int currentPlayingStage = 1; // 현재 플레이 중인 스테이지 번호 추적
@@ -73,9 +76,11 @@ public class GameFrame extends JFrame {
             if (isTopicAllCleared(selectedTopic) || (BattleEngine.isGodMode() && stageNo == 3)) {
                 // 마지막 스테이지까지 모두 클리어: 클리어 창 대신 축하 화면 (브금 멈추고 팡파르 → 끝나면 메인 브금)
                 // 주제 3개의 스테이지 9개를 처음으로 모두 깼으면, 마지막 주제는 주제 클리어 대신 던전 탈출 화면
-                // (무적 모드로 깬 판은 기록이 없어 세지 않음)
-                if (!escapeShown && isAllTopicsCleared()) {
-                    escapeShown = true;
+                // 무적 모드(시연)는 실제 기록 대신 godClearedTopics로 세고, 탈출 화면을 보면 다시 처음부터
+                boolean god = BattleEngine.isGodMode();
+                if (god) godClearedTopics.add(selectedTopic);
+                if (god ? godClearedTopics.size() == TOPICS.length : !escapeShown && isAllTopicsCleared()) {
+                    if (god) godClearedTopics.clear(); else escapeShown = true;
                     cardLayout.show(mainContainer, "escape");
                 } else {
                     showTopicClear(selectedTopic, stars);
