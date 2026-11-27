@@ -109,6 +109,19 @@ public class SoundManager {
 
     public static void playClick() { playEffect(CLICK); }
 
+    // 효과음을 뒤에서 미리 읽어 둠: 처음 재생할 때 파일을 여느라 화면이 약 0.1초 멈추는 것(탄막 첫 피격·첫 빔) 방지
+    public static void preloadEffects() {
+        Thread t = new Thread(() -> {
+            for (String p : new String[]{HURT, LASER, SLASH_SWING, SLASH_HIT, STAGE_CLEAR, PLAYER_DEATH, TOPIC_CLEAR, CLICK}) {
+                synchronized (SoundManager.class) {   // 하나씩 잠깐만 잠가서 그 사이 재생 요청이 오래 기다리지 않게
+                    if (effects.computeIfAbsent(p, SoundManager::loadEffect) == null) effects.remove(p);
+                }
+            }
+        }, "sound-preload");
+        t.setDaemon(true);
+        t.start();
+    }
+
     // 효과음 길이(ms). 파일을 못 읽으면 0
     public static synchronized long effectLengthMillis(String path) {
         Clip clip = effects.computeIfAbsent(path, SoundManager::loadEffect);

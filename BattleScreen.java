@@ -678,6 +678,8 @@ public class BattleScreen extends JPanel {
     @Override
     protected void paintChildren(Graphics g) {
         super.paintChildren(g);
+        Point p = SwingUtilities.convertPoint(dodgeGamePanel, 0, 0, this);   // 조여 오는 원: 탄막 필드 밖(보스 쪽)까지
+        dodgeGamePanel.paintOverlay(g, p.x, p.y);
         turnCards.paint(g, getWidth(), monsterView.normalImage);
     }
 

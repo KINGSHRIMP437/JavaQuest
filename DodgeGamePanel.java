@@ -69,6 +69,16 @@ public class DodgeGamePanel extends JPanel {
     private static final int GRID_N = 4;
     private static final int GRID_MARGIN = 30;   // 4×4 필드를 위아래로 줄이는 폭 (필드 밖 포탑 자리)
     private static final int GRID_FADE_MS = 400; // 발사가 끝난 뒤 포탑이 사라지는 시간 (다음 라운드 전까지 여유 있음)
+    // 조여 오는 원: 필드 가운데를 중심으로 구슬로 된 큰 원이 줄어들고, 한 곳만 뚫린 틈으로 원 밖에 나가야 함 (필드는 안 바뀜)
+    // 패턴 한 줄: {시작, SHRINK, 0, 원 개수, 줄어드는 시간(ms), 틈 너비(px), 회전 최소, 회전 최대(도/초, 0 = 안 돎)}. 예고 없이 바로 줄어들고,
+    // 앞 원이 다 줄기 전에 다음 원이 연달아 들어옴 (줄어드는 시간 × SHRINK_NEXT 간격)
+    private static final int SHRINK = 16;
+    private static final int SHRINK_ORBS = 80;    // 원 하나의 구슬 수: 필드 안에 보이는 가장 큰 원(반지름 약 415)에서도 구슬 사이가 플레이어(20px)보다 좁음
+    private static final int SHRINK_ORB_R = 8;
+    // 틈 너비는 원이 클 때의 호 길이. 반지름 150px 안쪽부터는 틈 각도가 그대로라 가운데로 갈수록 좁아지다 구슬이 한데 모임
+    private static final double SHRINK_NEXT = 0.6;   // 다음 원이 들어오는 간격 = 줄어드는 시간 × 0.6
+    // 구슬 그림은 미리 한 번만 그려 두고 찍기만 함 (매 프레임 구슬 수백 개를 원으로 그리면 패턴 시작 때 끊김)
+    private static final java.awt.image.BufferedImage ORB_SPRITE = makeOrbSprite();
     private static final int BOX_SIDE = 160;       // 줄어든 정사각형 한 변 (세로 4칸 → 칸 40px, 플레이어 20px)
     private static final int BOX_LANES = 4;
     private static final int BOX_SHRINK_MS = 300;  // 필드가 줄어드는 시간 (아주 빠르게)
@@ -95,6 +105,7 @@ public class DodgeGamePanel extends JPanel {
         {1200, 450, 2000},  // GRID: 예고 1.2초 (정사각형 필드 끝에서 끝까지 약 1초), 2초마다 다음 라운드
         {1800, 450, 2600},  // GRIDT: 포탑 위치를 보고 안전 칸을 찾을 시간 1.8초
         {1500, 450, 2300},  // GRIDT1: 1.5초
+        {0, 0, 0},   // SHRINK: 길이는 eventLength에서 따로 계산
     };
     private static final int RING_LOCK_MS = 250;   // 원형 포탑이 발사 직전 조준을 고정하는 시간
     private static final int RING_BEAM_W = 34;
@@ -117,7 +128,7 @@ public class DodgeGamePanel extends JPanel {
 
     // 스테이지(난이도)별 플로우 목록: [0] = 1스테이지(쉬움), [1] = 2스테이지(중간), [2] = 3스테이지(어려움)
     // 교수님 피드백(상대 턴이 너무 김): 플로우 길이를 예전(13~23초)의 절반쯤(7.5~10.6초)으로, 글자 탄막은 7개 중 2개에만
-    // 적의 턴마다 처음 7번은 안 나온 플로우 중에서 고르고(모두 한 번씩), 그 뒤로는 완전 무작위 (모든 주제 공통)
+    // 적의 턴마다 처음 8번은 안 나온 플로우 중에서 고르고(모두 한 번씩), 그 뒤로는 완전 무작위 (모든 주제 공통)
     private static final Flow[][] FLOWS = {
         {   // ---------- 1스테이지: 쉬움 ----------
             // 플로우 1 (약 9.0초): 위쪽 일제 사격 → 왼쪽 일제 사격 → 가로 순차
@@ -146,6 +157,9 @@ public class DodgeGamePanel extends JPanel {
             new Flow(NO_SNOW,
                 new int[]{500,  SEQ,  0, 7},      // 약 4.7초에 끝남
                 new int[]{4800, RING, 0, 4}),
+            // 플로우 8 (약 6.7초): 조여 오는 원 3개가 연달아 (2.6초 동안 줄어듦, 1.56초 간격)
+            new Flow(NO_SNOW,
+                new int[]{500, SHRINK, 0, 3, 2600, 160, 0, 0}),   // 쉬움: 틈 넓게
         },
         {   // ---------- 2스테이지: 중간 (순차 사격 강화 SEQ2·유도 레이저 강화 RING2·상중하 강화 LANE3F + 회전 빔·작은 상자·4×4 포탑) ----------
             // 플로우 1 (약 9.6초): 위쪽 일제 사격 → 가로 순차가 위·아래에서 동시에 → 유도 레이저가 2개씩 4번
@@ -172,6 +186,9 @@ public class DodgeGamePanel extends JPanel {
             // 플로우 7 (약 7.7초): 상·중·하 사격 강화 6번 (한 줄 3번은 빠르게, 두 줄 3번)
             new Flow(NO_SNOW,
                 new int[]{500, LANE3F, 0, 6}),
+            // 플로우 8 (약 6.6초): 조여 오는 원 4개가 연달아 (2.0초 동안 줄어듦, 1.2초 간격)
+            new Flow(NO_SNOW,
+                new int[]{500, SHRINK, 0, 4, 2000, 130, 0, 0}),   // 중간: 틈 조금 좁게, 더 빨리 줄어듦
         },
         {   // ---------- 3스테이지: 어려움 (중간 구성 + 상중하 어려움 LANE3H·유도 어려움 RING3·회전 빔 강화 SWEEPF·안전 원 ZONE) ----------
             // 플로우 1 (약 9.0초): 위쪽 일제 사격 → 가로 순차 강화 + 세로 순차 동시에
@@ -200,6 +217,9 @@ public class DodgeGamePanel extends JPanel {
             // 플로우 7 (약 9.5초): 필드가 바로 정사각형으로 바뀐 뒤 4×4 포탑 3번 (안전 칸 1곳)
             new Flow(NO_SNOW,
                 new int[]{2000, GRIDT1, 0, 3}),
+            // 플로우 8 (약 8.0초): 조여 오는 원 5개가 연달아 (2.1초 동안 줄어듦, 1.26초 간격)
+            new Flow(NO_SNOW,
+                new int[]{500, SHRINK, 0, 5, 2100, 120, 70, 110}),  // 어려움: 원이 돌아서 틈이 움직임 (원마다 초당 70~110도 무작위)
         },
     };
     private static final Color BEAM_COLOR = new Color(0, 230, 220);
@@ -221,7 +241,8 @@ public class DodgeGamePanel extends JPanel {
     boolean[] reversed = new boolean[0];   // SEQ: 발사 방향 반대로
     double[] ringOffset = new double[0];   // RING: 첫 포탑 각도
     double[][] ringAim = new double[0][];  // RING: 포탑별 현재 조준 각도
-    int[][][] laneShots = new int[0][][];  // LANE3: 이벤트별, 발사마다 {쏘는 줄 비트(위=1, 가운데=2, 아래=4), 오른쪽에서 쏘는 줄 비트}
+    int[][][] laneShots = new int[0][][];
+    double[][] shrinkSpin = new double[0][];   // SHRINK: 원마다 회전 빠르기 (도/초, 방향 포함)  // LANE3: 이벤트별, 발사마다 {쏘는 줄 비트(위=1, 가운데=2, 아래=4), 오른쪽에서 쏘는 줄 비트}
 
     private final Set<Integer> pressedKeys = new HashSet<>();
     private Consumer<Integer> onFinish;
@@ -257,7 +278,12 @@ public class DodgeGamePanel extends JPanel {
 
         gameLoopTimer = new Timer(30, e -> {
             updatePlayerPosition();
-            repaint();
+            // 조여 오는 원은 전투 화면 위층에 그리므로 전투 화면 전체를 다시 그림 (paintOverlay)
+            Component host = hasShrink() ? SwingUtilities.getAncestorOfClass(BattleScreen.class, this) : null;
+            if (host == null) { repaint(); return; }
+            // 원이 있는 부분만 다시 그림 (원이 작아지면 보스 쪽은 다시 그리지 않음)
+            Rectangle area = SwingUtilities.convertRectangle(this, shrinkArea(), host);
+            host.repaint(area.x, area.y, area.width, area.height);
         });
         resetGame();   // 첫 적의 턴 전에 화면이 그려져도 패턴용 배열이 비어 있지 않게
     }
@@ -404,6 +430,7 @@ public class DodgeGamePanel extends JPanel {
         ringOffset = new double[n];
         ringAim = new double[n][];
         laneShots = new int[n][][];
+        shrinkSpin = new double[n][];
         for (int i = 0; i < n; i++) {
             int lanes = script[i][3];
             safeLanes[i] = script[i][1] == ALL ? pickSafeLanes(lanes, script[i].length > 4 ? script[i][4] : 1)
@@ -414,6 +441,16 @@ public class DodgeGamePanel extends JPanel {
             if (script[i][1] == LANE3 || script[i][1] == LANE3F || script[i][1] == LANE3H) laneShots[i] = makeLaneShots(lanes, 3);
             if (script[i][1] == BOX) laneShots[i] = makeLaneShots(lanes, BOX_LANES);
             if (isGrid(script[i][1])) laneShots[i] = makeGridShots(script[i][1], lanes, rand);
+            if (script[i][1] == SHRINK)   // 원마다 틈 방향: 직전 원에서 60~120도 옆으로 (연달아 오므로 너무 멀면 못 감)
+                for (int k = 0; k < lanes; k++)
+                    ringAim[i][k] = k == 0 ? rand.nextDouble() * Math.PI * 2
+                            : ringAim[i][k - 1] + (rand.nextBoolean() ? 1 : -1) * Math.toRadians(60 + rand.nextDouble() * 60);
+            if (script[i][1] == SHRINK) {   // 원마다 회전 빠르기는 [최소, 최대]에서 무작위, 도는 방향은 번갈아
+                shrinkSpin[i] = new double[lanes];
+                boolean dir = rand.nextBoolean();
+                for (int k = 0; k < lanes; k++)
+                    shrinkSpin[i][k] = (dir ^ k % 2 == 1 ? 1 : -1) * (script[i][6] + rand.nextDouble() * (script[i][7] - script[i][6]));
+            }
         }
         pressedKeys.clear();
     }
@@ -574,6 +611,7 @@ public class DodgeGamePanel extends JPanel {
                    : e[1] == SEQ2 ? (e[3] + 1) / 2       // SEQ2는 양 끝에서 2줄씩 → 가운데까지 절반
                    : e[3];
         if (e[1] == ZONE) return ZONE_WARN + e[3] * ZONE_LEG + FADE_MS;
+        if (e[1] == SHRINK) return (int) ((e[3] - 1) * shrinkNext(e[4]) + e[4] + FADE_MS);
         if (e[1] == RING3) return (int) (SLIDE_MS + ring3Offset(e[4], e[3] - 1) + tm[0] + tm[1] + FADE_MS);
         int vDelay = e[1] == LANE3H && rounds <= 3 ? LANE3H_V_DELAY : 0;   // 마지막이 한 줄 발사면 늦게 나가는 세로 빔까지
         int fade = isGrid(e[1]) ? GRID_FADE_MS : FADE_MS;                   // 4×4 포탑은 더 천천히 사라짐
@@ -675,6 +713,10 @@ public class DodgeGamePanel extends JPanel {
         if (type == ZONE) {
             drawZone(g2, ev, t, playerRect, fr);
             lanes = 0;   // 포탑 없음
+        }
+        if (type == SHRINK) {
+            drawShrink(g2, ev, t, playerRect, fr);
+            lanes = 0;
         }
         for (int lane = 0; lane < lanes; lane++) {
             if (isSafe(ev, lane)) continue;
@@ -838,6 +880,138 @@ public class DodgeGamePanel extends JPanel {
         drawCannon(g2, tx, ty, a - Math.PI / 2, chargeT, chargeLen, fireT);
         g2.setComposite(savedComposite);
         return flash;
+    }
+
+    // SHRINK: 원들이 SHRINK_NEXT 간격으로 연달아 가운데로 줄어듦
+    // 여기서는 틈 방향 안내선과 판정만. 구슬은 전투 화면 위층(paintOverlay)에서 그림 (전투 화면 밖에서 쓰일 때만 여기서)
+    private void drawShrink(Graphics2D g2, int ev, long t, Rectangle playerRect, Rectangle fr) {
+        int dur = script[ev][4];
+        double r0 = Math.hypot(fr.width, fr.height) / 2 + 12;   // 처음엔 필드 전체를 감쌈
+        double cx = fr.getCenterX(), cy = fr.getCenterY();
+        for (int k = 0; k < script[ev][3]; k++) {
+            long s = shrinkElapsed(t, k, dur);
+            if (s >= dur || s < 0) continue;   // 다 줄었거나 아직 안 들어옴
+            double r = shrinkRadius(r0, s, dur), gap = shrinkGap(ev, k, s);
+            // 판정은 원이 가운데 한 점으로 모일 때까지 (가운데에 서 있으면 맞음)
+            if (shrinkHits(playerRect.getCenterX() - cx, playerRect.getCenterY() - cy, r, gap, script[ev][5])) applyHit();
+        }
+        if (SwingUtilities.getAncestorOfClass(BattleScreen.class, this) == null) drawShrinkOrbs(g2, ev, t, fr);
+    }
+
+    // k번째 원이 줄어들기 시작한 뒤 지난 시간 (음수 = 아직 대기)
+    private static long shrinkElapsed(long t, int k, int dur) {
+        return t - (long) (k * shrinkNext(dur));
+    }
+
+    static double shrinkNext(int dur) {
+        return dur * SHRINK_NEXT;
+    }
+
+    // 다시 그릴 영역 (이 패널 좌표): 패널 전체 + 지금 보이는 가장 큰 원 (지난 프레임 자리까지 덮게 넉넉히)
+    private Rectangle shrinkArea() {
+        Rectangle area = new Rectangle(0, 0, getWidth(), getHeight());
+        long elapsed = System.currentTimeMillis() - startTime;
+        Rectangle fr = field(getWidth(), getHeight(), elapsed);
+        double rMax = 0;
+        for (int[] e : script) {
+            if (e[1] != SHRINK) continue;
+            for (int k = 0; k < e[3]; k++) {
+                long s = shrinkElapsed(elapsed - e[0], k, e[4]);
+                if (s >= -60 && s < e[4] + 60)
+                    rMax = Math.max(rMax, shrinkRadius(Math.hypot(fr.width, fr.height) / 2 + 12, Math.max(0, s - 60), e[4]));
+            }
+        }
+        int m = (int) Math.ceil(rMax) + SHRINK_ORB_R + 6;
+        if (rMax > 0) area.add(new Rectangle((int) fr.getCenterX() - m, (int) fr.getCenterY() - m, m * 2, m * 2));
+        return area;
+    }
+
+    private boolean hasShrink() {
+        if (!useCannonPattern()) return false;
+        for (int[] e : script) if (e[1] == SHRINK) return true;
+        return false;
+    }
+
+    // 전투 화면(BattleScreen.paintChildren)이 부름: 조여 오는 원의 구슬을 탄막 필드 밖(보스 쪽)까지 그림. dx·dy = 이 패널의 위치
+    public void paintOverlay(Graphics g, int dx, int dy) {
+        if (!isShowing() || !hasShrink() || gameLoopTimer == null || !gameLoopTimer.isRunning()) return;
+        long elapsed = System.currentTimeMillis() - startTime;
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.translate(dx, dy);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        for (int ev = 0; ev < script.length; ev++) {
+            long t = elapsed - script[ev][0];
+            if (script[ev][1] != SHRINK || t < 0 || t >= eventLength(script[ev])) continue;
+            drawShrinkOrbs(g2, ev, t, field(getWidth(), getHeight(), script[ev][0] + t));
+        }
+        g2.dispose();
+    }
+
+    private void drawShrinkOrbs(Graphics2D g2, int ev, long t, Rectangle fr) {
+        Rectangle clip = g2.getClipBounds();
+        int dur = script[ev][4];
+        double r0 = Math.hypot(fr.width, fr.height) / 2 + 12;
+        double cx = fr.getCenterX(), cy = fr.getCenterY();
+        for (int k = 0; k < script[ev][3]; k++) {
+            long s = shrinkElapsed(t, k, dur);
+            if (s >= dur || s < 0) continue;
+            double r = shrinkRadius(r0, s, dur), gap = shrinkGap(ev, k, s);
+            double half = shrinkGapHalf(r, script[ev][5]);
+            int off = ORB_SPRITE.getWidth() / 2;
+            for (int o = 0; o < SHRINK_ORBS; o++) {
+                double ang = gap + Math.PI * 2 * o / SHRINK_ORBS;
+                if (angleDiff(ang, gap) < half) continue;
+                int ox = (int) Math.round(cx + r * Math.cos(ang)) - off, oy = (int) Math.round(cy + r * Math.sin(ang)) - off;
+                if (clip != null && !clip.intersects(ox, oy, off * 2, off * 2)) continue;   // 다시 그리는 영역 밖은 건너뜀
+                g2.drawImage(ORB_SPRITE, ox, oy, null);
+            }
+        }
+    }
+
+    private static java.awt.image.BufferedImage makeOrbSprite() {
+        int size = SHRINK_ORB_R * 2 + 6;
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(new Color(0, 230, 220, 90));   // 빛 번짐
+        g.fillOval(0, 0, size, size);
+        g.setColor(new Color(235, 248, 255));    // 구슬
+        g.fillOval(3, 3, SHRINK_ORB_R * 2, SHRINK_ORB_R * 2);
+        g.dispose();
+        // 미리 한 번 찍어 봄: 그림 찍기 첫 호출의 준비 시간(약 7ms)이 패턴 첫 프레임에 걸리지 않게
+        java.awt.image.BufferedImage warm = new java.awt.image.BufferedImage(size * 2, size * 2, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        Graphics2D wg = warm.createGraphics();
+        wg.drawImage(img, 3, 3, null);
+        wg.dispose();
+        return img;
+    }
+
+    // SHRINK 계산 (DodgeShrinkCheck에서도 씀): t = 줄어들기 시작한 뒤 지난 시간
+    static double shrinkRadius(double r0, long t, int dur) {
+        return t <= 0 ? r0 : r0 * Math.max(0, 1 - t / (double) dur);
+    }
+
+    // k번째 원의 지금 틈 방향: 처음 방향에서 그 원의 회전 빠르기만큼 돎
+    private double shrinkGap(int ev, int k, long s) {
+        return ringAim[ev][k] + Math.toRadians(shrinkSpin[ev][k]) * s / 1000.0;
+    }
+
+    // 틈 반각(라디안): 원이 클 때는 호 길이 gapPx, 반지름 150px 안쪽부터는 각도 고정 (gapPx/300)
+    static double shrinkGapHalf(double r, int gapPx) {
+        return Math.min(gapPx / 300.0, gapPx / 2.0 / Math.max(r, 1));
+    }
+
+    static double angleDiff(double a, double b) {
+        double d = Math.abs(a - b) % (Math.PI * 2);
+        return d > Math.PI ? Math.PI * 2 - d : d;
+    }
+
+    // 원 중심 기준 (px, py)에 있는 플레이어(20px)가 구슬에 닿는지: 틈이 아닌 각도에서 원 둘레와 가까우면 맞음
+    static boolean shrinkHits(double px, double py, double r, double gap, int gapPx) {
+        double d = Math.hypot(px, py);
+        if (Math.abs(d - r) >= SHRINK_ORB_R + 8) return false;
+        double reach = Math.atan2(SHRINK_ORB_R + 8, Math.max(r, 1));   // 플레이어가 틈 가장자리 구슬에 닿는 각도 여유
+        return angleDiff(Math.atan2(py, px), gap) > shrinkGapHalf(r, gapPx) - reach;
     }
 
     // ZONE: 원 밖은 전부 피격 범위. 예고 동안은 가운데에 멈춰 있고, 그 뒤엔 가운데에서 출발해 8자(가로 1번, 세로 2번 왕복)를 그림
@@ -1070,10 +1244,11 @@ public class DodgeGamePanel extends JPanel {
 
     // 빔이 발사된 직후 잠깐 화면을 흔든다 (일제 사격이 가장 세게)
     private int[] shakeOffset(long elapsed) {
-        double[] power = {6, 3, 4, 4, 3, 5, 4, 4, 5, 5, 4, 5, 0, 4, 5, 5};   // ALL, SEQ, RING, LANE3, BOX, RING2, SEQ2, LANE3F, SWEEP, SWEEPF, LANE3H, RING3, ZONE, GRID, GRIDT, GRIDT1
+        double[] power = {6, 3, 4, 4, 3, 5, 4, 4, 5, 5, 4, 5, 0, 4, 5, 5, 0};   // ALL, SEQ, RING, LANE3, BOX, RING2, SEQ2, LANE3F, SWEEP, SWEEPF, LANE3H, RING3, ZONE, GRID, GRIDT, GRIDT1, SHRINK
         double m = 0;
         for (int ev = 0; ev < script.length; ev++) {
             int type = script[ev][1];
+            if (power[type] == 0) continue;   // 흔들림 없는 패턴 (ZONE·SHRINK)
             for (int lane = 0; lane < script[ev][3]; lane++) {
                 if (isSafe(ev, lane)) continue;
                 long fireT = elapsed - script[ev][0] - chargeStart(ev, lane) - shotCharge(type, lane);

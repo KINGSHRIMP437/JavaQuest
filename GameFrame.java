@@ -112,6 +112,7 @@ public class GameFrame extends JFrame {
         // 소리: 모든 버튼 클릭음 + 타이틀~스테이지 맵 브금
         SoundManager.installButtonClickSound();
         SoundManager.playBgm(SoundManager.BGM_MAIN);
+        SoundManager.preloadEffects();
     }
 
     // 별점 계산 및 최고 기록 갱신 메서드. 이번 판의 별점을 반환 (패배·도망이면 0)
