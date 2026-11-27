@@ -1,200 +1,238 @@
-import javax.imageio.ImageIO;
 import javax.swing.*;
-import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public class StageMapScreen extends JPanel {
-    private static final Color BG_COLOR = new Color(15, 20, 35);
-    private static final Color BORDER_COLOR = new Color(0, 200, 190);
-    private static final Color LOCKED_TEXT = new Color(110, 115, 130);   // 잠긴 스테이지 글자색
+// 스테이지 맵 화면: 고른 관문(주제)의 STAGE 1~3을 카드로 보여 준다.
+// 카드 상태는 4가지 → 클리어 / 다음 도전 대상(NEXT TARGET) / 열림(무적 모드) / 잠김
+// 각 스테이지의 수호자(보스) 이름은 백엔드(monsters.txt → DataLoader)에서 받아 온다.
+public class StageMapScreen extends DungeonBackground {
     private static final String LOCK_IMAGE = "images/ui/lock.png";
-    private static final int LOCK_SIZE = 80;
-    private static Icon lockIcon;   // 한 번만 불러와서 재사용
+    private static final int LOCK_SIZE = 96;
+    private static Icon lockIcon;   // 한 번만 만들어서 재사용
+
+    private static final String[][] STAGE_INFO = {
+        {"STAGE 1", "쉬움 난이도\n기본 보스 등장"},
+        {"STAGE 2", "중간 난이도\n탄막 속도 증가"},
+        {"STAGE 3", "어려움 난이도\n최종 보스전"}
+    };
+
+    private enum CardState { CLEARED, NEXT, OPEN, LOCKED }
 
     public StageMapScreen(String currentTopic, Map<String, Integer> stageBestStars, Consumer<Integer> onStageSelected, Runnable onBackToTopic) {
+        super(false);
         setPreferredSize(new Dimension(1050, 800));
-        setBackground(BG_COLOR);
-        setLayout(new BorderLayout(20, 20));
-        setBorder(BorderFactory.createEmptyBorder(40, 40, 40, 40));
+        setLayout(new BorderLayout(0, 10));
+        setBorder(BorderFactory.createEmptyBorder(32, 40, 28, 40));
 
-        // 상단 타이틀 및 뒤로가기 버튼
+        // 다음에 도전할 스테이지 (아직 클리어하지 않은 첫 번째 스테이지, 모두 깼으면 4)
+        int nextPlayableStage = 1;
+        while (nextPlayableStage <= 3 && stageBestStars.containsKey(currentTopic + "_" + nextPlayableStage)) {
+            nextPlayableStage++;
+        }
+        int clearedCount = 0;
+        for (int i = 1; i <= 3; i++) {
+            if (stageBestStars.containsKey(currentTopic + "_" + i)) clearedCount++;
+        }
+
+        // ===== 위쪽 헤더: [← 주제 변경]  GATE 0n · DUNGEON FLOORS / 제목  [관문 돌파 n/3] =====
+        JqButton backBtn = new JqButton("← 주제 변경", UiTheme.YELLOW, UiTheme.GRAY_BORDER, 1, 14);
+        backBtn.setPreferredSize(new Dimension(124, 36));
+        backBtn.addActionListener(e -> onBackToTopic.run());
+
+        JqCard badge = UiTheme.badge();
+        badge.setLine(GRAY_70, 1);
+        UiTheme.setBadgeValue(badge, "관문 돌파", clearedCount + " / 3", UiTheme.YELLOW);
+
         JPanel topPanel = new JPanel(new BorderLayout());
         topPanel.setOpaque(false);
-
-        JLabel titleLabel = new JLabel("스테이지 맵 — [" + getTopicTitle(currentTopic) + "]", SwingConstants.CENTER);
-        titleLabel.setForeground(Color.WHITE);
-        titleLabel.setFont(new Font("맑은 고딕", Font.BOLD, 26));
-        topPanel.add(titleLabel, BorderLayout.CENTER);
-
-        JButton backBtn = new JButton("주제 변경");
-        backBtn.setBackground(new Color(25, 30, 50));
-        backBtn.setForeground(Color.YELLOW);
-        backBtn.setFont(new Font("맑은 고딕", Font.BOLD, 14));
-        backBtn.setBorder(new LineBorder(Color.GRAY, 1));
-        backBtn.setFocusPainted(false);
-        backBtn.addActionListener(e -> onBackToTopic.run());
-        topPanel.add(backBtn, BorderLayout.WEST);
-
+        topPanel.add(UiTheme.side(backBtn, FlowLayout.LEFT), BorderLayout.WEST);
+        topPanel.add(UiTheme.headerTitle(
+                String.format("GATE %02d · DUNGEON FLOORS", getGateNo(currentTopic)),
+                "지식의 관문 — [" + getTopicTitle(currentTopic) + "]"), BorderLayout.CENTER);
+        topPanel.add(UiTheme.side(badge, FlowLayout.RIGHT), BorderLayout.EAST);
         add(topPanel, BorderLayout.NORTH);
 
-        // 스테이지 3개 목록 패널
-        JPanel stagesPanel = new JPanel(new GridLayout(1, 3, 30, 0));
+        // ===== 가운데: 스테이지 카드 3개 =====
+        JPanel stagesPanel = new JPanel(new GridLayout(1, 3, 28, 0));
         stagesPanel.setOpaque(false);
-        stagesPanel.setBorder(BorderFactory.createEmptyBorder(60, 40, 60, 40));
+        stagesPanel.setBorder(BorderFactory.createEmptyBorder(34, 20, 34, 20));
 
-        String[][] stageInfo = {
-            {"STAGE 1", "쉬움 난이도\n기본 보스 등장", "1"},
-            {"STAGE 2", "중간 난이도\n탄막 속도 증가", "2"},
-            {"STAGE 3", "어려움 난이도\n최종 보스전", "3"}
-        };
-
-        // 다음에 도전할 스테이지 찾기 (아직 클리어하지 않은 첫 번째 스테이지)
-        int nextPlayableStage = 1;
-        for (int i = 1; i <= 3; i++) {
-            String key = currentTopic + "_" + i;
-            if (stageBestStars.containsKey(key)) {
-                nextPlayableStage = i + 1; // 클리어했으면 다음 스테이지가 도전 대상
-            } else {
-                break;
-            }
-        }
-
-        for (int i = 0; i < 3; i++) {
-            int stageNum = Integer.parseInt(stageInfo[i][2]);
-            String key = currentTopic + "_" + stageNum;
+        for (int stageNo = 1; stageNo <= 3; stageNo++) {
+            String key = currentTopic + "_" + stageNo;
             boolean isCleared = stageBestStars.containsKey(key);
-            int stars = stageBestStars.getOrDefault(key, 0);
-            // 순서대로 열림: STAGE 1은 항상, 2·3은 같은 주제의 바로 앞 스테이지를 클리어해야 열림
-            // 무적 모드(타이틀 커맨드)에서는 모든 스테이지 열림
-            boolean isUnlocked = stageNum == 1 || stageBestStars.containsKey(currentTopic + "_" + (stageNum - 1))
+            // 순서대로 열림: STAGE 1은 항상, 2·3은 바로 앞 스테이지를 클리어해야 열림 (무적 모드는 모두 열림)
+            boolean isUnlocked = stageNo == 1 || stageBestStars.containsKey(currentTopic + "_" + (stageNo - 1))
                     || BattleEngine.isGodMode();
 
-            // 다음에 도전할 스테이지인지 여부 (3스테이지까지 모두 깼다면 민트색 테두리 없음)
-            boolean isNextTarget = (stageNum == nextPlayableStage && nextPlayableStage <= 3);
+            CardState state;
+            if (isCleared) state = CardState.CLEARED;
+            else if (stageNo == nextPlayableStage) state = CardState.NEXT;
+            else if (isUnlocked) state = CardState.OPEN;
+            else state = CardState.LOCKED;
 
-            JPanel stageCard = new JPanel(new BorderLayout());
-            stageCard.setBackground(new Color(20, 25, 45));
-            // 조건에 따라 테두리 색상 및 두께 다르게 설정
-            stageCard.setBorder(new LineBorder(isNextTarget ? BORDER_COLOR : Color.GRAY, isNextTarget ? 2 : 1));
-            
-            // 상단 타이틀 영역 (클리어 시 [CLEAR] 표시 병행, 가로 가운데 정렬)
-            String titleText = stageInfo[i][0] + (isCleared ? " [CLEAR]" : "");
-            JLabel sTitle = new JLabel(titleText, SwingConstants.CENTER);
-            sTitle.setForeground(!isUnlocked ? LOCKED_TEXT : isCleared ? new Color(100, 255, 150) : Color.YELLOW);
-            sTitle.setFont(new Font("맑은 고딕", Font.BOLD, 28));
-            sTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
-            sTitle.setBorder(BorderFactory.createEmptyBorder(28, 10, 6, 10));
+            Stage stage = DataLoader.loadStage("monsters.txt", currentTopic, stageNo);
+            int stars = stageBestStars.getOrDefault(key, 0);
+            stagesPanel.add(createStageCard(stageNo, state, stars, stage.getBossName(), onStageSelected));
+        }
+        add(stagesPanel, BorderLayout.CENTER);
 
-            // 별점 표시 라벨 (클리어된 경우에만 별 표시)
-            JLabel starLabel = new JLabel(getStarString(stars, isCleared), SwingConstants.CENTER);
-            starLabel.setFont(new Font("Dialog", Font.BOLD, 22));
-            starLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-            starLabel.setBorder(BorderFactory.createEmptyBorder(4, 10, 12, 10));
+        // ===== 아래쪽 안내 =====
+        add(UiTheme.label("모든 스테이지를 클리어하면 다음 지식의 관문으로 나아갈 수 있습니다",
+                UiTheme.TEXT_SUB, Font.PLAIN, 13), BorderLayout.SOUTH);
+    }
 
-            // 설명 텍스트 (가로·세로 정중앙 정렬)
-            JLabel sDesc = new JLabel(
-                    "<html><center>" + stageInfo[i][1].replace("\n", "<br>") + "</center></html>",
-                    SwingConstants.CENTER);
-            sDesc.setForeground(isUnlocked ? Color.WHITE : LOCKED_TEXT);
-            sDesc.setFont(new Font("맑은 고딕", Font.PLAIN, 19));
-            sDesc.setBorder(BorderFactory.createEmptyBorder(10, 16, 10, 16));
-            sDesc.setAlignmentX(0.5f);
-            sDesc.setAlignmentY(0.5f);
+    private static final Color GRAY_70 = new Color(51, 65, 85);   // 잠긴 카드·배지 테두리
 
-            // 카드 내부 상단 패널 (제목 + 별점 묶음)
-            JPanel cardHeader = new JPanel();
-            cardHeader.setOpaque(false);
-            cardHeader.setLayout(new BoxLayout(cardHeader, BoxLayout.Y_AXIS));
-            cardHeader.add(sTitle);
-            cardHeader.add(starLabel);
-
-            // 입장하기 버튼: 박스 가로폭을 채우는 긴 바 형태
-            JButton enterBtn = new JButton("입장하기");
-            enterBtn.setBackground(new Color(25, 30, 50));
-            enterBtn.setForeground(Color.WHITE);
-            enterBtn.setFont(new Font("맑은 고딕", Font.BOLD, 18));
-            enterBtn.setPreferredSize(new Dimension(0, 48));
-            enterBtn.setBorder(new LineBorder(isUnlocked ? BORDER_COLOR : LOCKED_TEXT, 2));
-            enterBtn.setFocusPainted(false);
-            enterBtn.setEnabled(isUnlocked); // 잠긴 스테이지는 입장 불가
-            enterBtn.addActionListener(e -> onStageSelected.accept(stageNum));
-
-            JPanel btnWrapper = new JPanel(new BorderLayout());
-            btnWrapper.setOpaque(false);
-            btnWrapper.setBorder(BorderFactory.createEmptyBorder(0, 24, 24, 24));
-            btnWrapper.add(enterBtn, BorderLayout.CENTER);
-
-            stageCard.add(cardHeader, BorderLayout.NORTH);
-            if (isUnlocked) {
-                stageCard.add(sDesc, BorderLayout.CENTER);
-            } else {
-                // 잠긴 카드: STAGE 1과 동일한 중앙 위치에 설명글을 두고 자물쇠 아이콘을 중앙에 겹침
-                JPanel lockedCenter = new JPanel();
-                lockedCenter.setLayout(new OverlayLayout(lockedCenter));
-                lockedCenter.setOpaque(false);
-
-                JLabel lockLabel = new JLabel(getLockIcon(), SwingConstants.CENTER);
-                lockLabel.setToolTipText("STAGE " + (stageNum - 1) + "을(를) 클리어하면 열립니다");
-                lockLabel.setAlignmentX(0.5f);
-                lockLabel.setAlignmentY(0.5f);
-
-                lockedCenter.add(sDesc);
-                lockedCenter.add(lockLabel);
-                stageCard.add(lockedCenter, BorderLayout.CENTER);
-            }
-            stageCard.add(btnWrapper, BorderLayout.SOUTH);
-
-            stagesPanel.add(stageCard);
+    private JqCard createStageCard(int stageNo, CardState state, int stars, String bossName, Consumer<Integer> onStageSelected) {
+        // --- 상태별 색과 문구 ---
+        Color titleColor, borderColor, subColor;
+        int borderWidth;
+        String subText, btnText;
+        switch (state) {
+            case CLEARED:
+                titleColor = UiTheme.GREEN;  borderColor = UiTheme.GRAY_BORDER;  borderWidth = 1;
+                subText = UiTheme.starHtml(stars);  subColor = UiTheme.GOLD;  btnText = "다시 도전";
+                break;
+            case NEXT:
+                titleColor = UiTheme.YELLOW; borderColor = UiTheme.MINT;  borderWidth = 2;
+                subText = "NEXT TARGET";  subColor = UiTheme.MINT;  btnText = "입장하기  ▶";
+                break;
+            case OPEN:
+                titleColor = UiTheme.YELLOW; borderColor = UiTheme.MINT_SOFT;  borderWidth = 1;
+                subText = "OPEN";  subColor = UiTheme.MINT;  btnText = "입장하기  ▶";
+                break;
+            default:   // LOCKED
+                titleColor = UiTheme.TEXT_DIM; borderColor = GRAY_70;  borderWidth = 1;
+                subText = "LOCKED";  subColor = new Color(71, 85, 105);  btnText = "잠김";
         }
 
-        add(stagesPanel, BorderLayout.CENTER);
+        JqCard card = new JqCard(state == CardState.NEXT ? new Color(24, 31, 55) : UiTheme.CARD, borderColor, borderWidth, 16);
+        card.setLayout(new BorderLayout());
+        card.setBorder(BorderFactory.createEmptyBorder(28, 22, 22, 22));
+
+        // --- 위: 제목 + (별점 / NEXT TARGET / LOCKED) ---
+        JPanel head = new JPanel();
+        head.setOpaque(false);
+        head.setLayout(new BoxLayout(head, BoxLayout.Y_AXIS));
+        String title = STAGE_INFO[stageNo - 1][0] + (state == CardState.CLEARED ? " [CLEAR]" : "");
+        head.add(UiTheme.label(title, titleColor, Font.BOLD, state == CardState.CLEARED ? 24 : 28));
+        head.add(Box.createVerticalStrut(8));
+        boolean isStars = state == CardState.CLEARED;
+        head.add(UiTheme.label(subText, subColor, Font.BOLD, isStars ? 24 : 12));
+
+        // --- 가운데: 수호자 이름 + 설명 (잠긴 카드는 설명 위에 자물쇠를 겹침) ---
+        JPanel middle = new JPanel();
+        middle.setOpaque(false);
+        middle.setLayout(new BoxLayout(middle, BoxLayout.Y_AXIS));
+        middle.add(Box.createVerticalGlue());
+
+        String desc = "<html><center>" + STAGE_INFO[stageNo - 1][1].replace("\n", "<br>") + "</center></html>";
+        if (state == CardState.LOCKED) {
+            // 설명글 위에 자물쇠를 겹쳐서 카드 정중앙에 배치 (마우스를 올리면 해금 조건 안내)
+            middle.add(createLockedCenter(desc, stageNo));
+        } else {
+            Color chipColor = state == CardState.CLEARED ? UiTheme.GREEN : UiTheme.MINT;
+            middle.add(createChip("수호자: " + bossName, chipColor));
+            middle.add(Box.createVerticalStrut(14));
+            middle.add(UiTheme.label(desc, state == CardState.CLEARED ? new Color(226, 232, 240) : Color.WHITE,
+                    Font.PLAIN, 19));
+        }
+        middle.add(Box.createVerticalGlue());
+
+        // --- 아래: 입장 버튼 (카드 가로폭을 채우는 긴 바) ---
+        JqButton enterBtn;
+        if (state == CardState.NEXT) {
+            enterBtn = new JqButton(btnText, UiTheme.YELLOW, UiTheme.MINT, 2, 17);
+        } else if (state == CardState.LOCKED) {
+            enterBtn = new JqButton(btnText, UiTheme.TEXT_DIM, GRAY_70, 1, 17);
+            enterBtn.setEnabled(false);   // 잠긴 스테이지는 입장 불가
+        } else {
+            enterBtn = new JqButton(btnText, Color.WHITE, UiTheme.MINT_SOFT, 2, 17);
+        }
+        enterBtn.setPreferredSize(new Dimension(0, 50));
+        enterBtn.addActionListener(e -> onStageSelected.accept(stageNo));
+
+        card.add(head, BorderLayout.NORTH);
+        card.add(middle, BorderLayout.CENTER);
+        card.add(enterBtn, BorderLayout.SOUTH);
+        return card;
+    }
+
+    // "수호자: SyntaxError (Lv.1)" 처럼 둥근 알약 모양 라벨
+    private static JComponent createChip(String text, Color color) {
+        JqCard chip = new JqCard(new Color(color.getRed(), color.getGreen(), color.getBlue(), 38),
+                new Color(color.getRed(), color.getGreen(), color.getBlue(), 100), 1, 24);
+        chip.setLayout(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        chip.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+        JLabel l = new JLabel(text);
+        l.setForeground(color);
+        l.setFont(UiTheme.font(Font.BOLD, 12));
+        chip.add(l);
+
+        // BoxLayout 안에서 가로로 늘어나지 않고 글자 크기만큼만 차지하도록 감싸기
+        JPanel wrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        wrap.setOpaque(false);
+        wrap.add(chip);
+        wrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, chip.getPreferredSize().height));
+        wrap.setAlignmentX(Component.CENTER_ALIGNMENT);
+        return wrap;
+    }
+
+    // 잠긴 카드 가운데: 설명글과 자물쇠를 OverlayLayout으로 같은 자리에 겹침
+    // OverlayLayout은 먼저 add한 컴포넌트가 위에 그려지므로 자물쇠를 먼저 넣는다.
+    private static JComponent createLockedCenter(String desc, int stageNo) {
+        JPanel overlay = new JPanel();
+        overlay.setLayout(new OverlayLayout(overlay));
+        overlay.setOpaque(false);
+        overlay.setToolTipText("STAGE " + (stageNo - 1) + "을(를) 클리어하면 열립니다");
+
+        JLabel lockLabel = new JLabel(getLockIcon());
+        lockLabel.setAlignmentX(0.5f);
+        lockLabel.setAlignmentY(0.5f);
+
+        JLabel descLabel = UiTheme.label(desc, UiTheme.TEXT_SUB, Font.PLAIN, 19);
+        descLabel.setAlignmentX(0.5f);
+        descLabel.setAlignmentY(0.5f);
+
+        overlay.add(lockLabel);   // 위
+        overlay.add(descLabel);   // 아래
+        overlay.setAlignmentX(Component.CENTER_ALIGNMENT);
+        overlay.setMaximumSize(new Dimension(Integer.MAX_VALUE, overlay.getPreferredSize().height));
+        return overlay;
     }
 
     // 자물쇠 아이콘: images/ui/lock.png를 줄여서 쓰고, 파일이 없거나 못 읽으면 코드로 그린 자물쇠
     private static Icon getLockIcon() {
         if (lockIcon != null) return lockIcon;
-        try {
-            BufferedImage img = ImageIO.read(new File(LOCK_IMAGE));
-            if (img != null) {
-                return lockIcon = new ImageIcon(img.getScaledInstance(LOCK_SIZE, LOCK_SIZE, Image.SCALE_SMOOTH));
-            }
-        } catch (IOException ignored) {
-        }
-        BufferedImage img = new BufferedImage(LOCK_SIZE, LOCK_SIZE, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage img = UiTheme.loadImage(LOCK_IMAGE);
+        if (img == null) img = drawFallbackLock();
+        return lockIcon = UiTheme.scaledIcon(img, LOCK_SIZE, LOCK_SIZE);
+    }
+
+    private static BufferedImage drawFallbackLock() {
+        BufferedImage img = new BufferedImage(80, 80, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(new Color(170, 175, 190));
+        g.setColor(new Color(148, 163, 184));
         g.setStroke(new BasicStroke(7));
         g.drawArc(22, 8, 36, 46, 0, 180);   // 고리
         g.drawLine(22, 31, 22, 40);
         g.drawLine(58, 31, 58, 40);
-        g.setColor(new Color(230, 170, 50));
+        g.setColor(new Color(100, 116, 139));
         g.fillRoundRect(12, 36, 56, 40, 10, 10);   // 몸통
-        g.setColor(new Color(60, 35, 5));
+        g.setColor(UiTheme.BG);
         g.fillOval(34, 46, 12, 12);   // 열쇠 구멍
         g.fillRect(38, 54, 4, 12);
         g.dispose();
-        return lockIcon = new ImageIcon(img);
+        return img;
     }
 
-    // 별점 개수에 맞춰 노란색/회색 별 문자열 반환
-    private String getStarString(int stars, boolean isCleared) {
-        if (!isCleared) return " ";
-        StringBuilder sb = new StringBuilder("<html><span style= 'font-size: 22pt; color: #FFD700;'>");
-        for (int i = 1; i <= 3; i++) {
-            if (i <= stars) {
-                sb.append("★ ");
-            } else {
-                sb.append("</span><span style= 'font-size: 22pt; color: #555555;'>☆ </span><span style= 'font-size: 22pt; color: #FFD700;'>");
-            }
-        }
-        sb.append("</span></html>");
-        return sb.toString().trim();
+    private static int getGateNo(String id) {
+        if ("common".equals(id)) return 2;
+        if ("name".equals(id)) return 3;
+        return 1;
     }
 
     private String getTopicTitle(String id) {
