@@ -20,7 +20,7 @@ public class BattleScreen extends JPanel {
     private BattleListener listener;
     private Random random = new Random();
     private List<QuizItem> allQuestions = new ArrayList<>(); // 이번 스테이지 전체 문제
-    private List<QuizItem> pool = new ArrayList<>();         // 아직 맞히지 않은 문제
+    private List<QuizItem> pool = new ArrayList<>();         // 아직 내지 않은 문제 (맞든 틀리든 한 번 낸 문제는 뺌)
     private QuizItem current;
     private int stageNo;
     private String currentTopicId;
@@ -41,7 +41,6 @@ public class BattleScreen extends JPanel {
     private JLabel turnLabel = new JLabel("", SwingConstants.RIGHT);
     private JButton skipBtn;   // 시연용: 무적 모드에서만 왼쪽 위에 보임, 나의 턴(명령 고르기)에만 누를 수 있음
     private final TurnCards turnCards = new TurnCards(this);   // 오른쪽 위 턴 카드 (턴이 바뀌면 튀어나왔다가 들어감)
-    private JLabel bossNameLabel = new JLabel("", SwingConstants.CENTER);
     private JProgressBar bossHpBar = new JProgressBar();
     
     private JLabel[] hearts = new JLabel[MAX_HEARTS];
@@ -63,6 +62,7 @@ public class BattleScreen extends JPanel {
     private static final int INVINCIBLE_MS = 3000;   // 무적 시간
     private static final Color GOLD = new Color(255, 215, 0);
     private Inventory inventory = new Inventory();
+    private static boolean guideShown = false;   // 첫 전투에서만 하트·남은 공격·아이템을 설명 (이후 전투에서는 안 나옴)
     private ItemIcon.Slot[] itemSlots = new ItemIcon.Slot[Inventory.TYPES];   // 하트 줄 오른쪽 아이템 칸
     private JButton[] itemBtns = new JButton[Inventory.TYPES];   // 아이템 메뉴 버튼
     private ItemIcon[] itemBtnIcons = new ItemIcon[Inventory.TYPES];
@@ -110,14 +110,19 @@ public class BattleScreen extends JPanel {
         lastHearts = engine.getPlayerHearts();
 
         stageLabel.setText("STAGE " + stageNo + " · " + topicName);
-        bossNameLabel.setText(bossName);
         bossHpBar.setMaximum(engine.getBossMaxHp());
         bossHpBar.setValue(engine.getBossHp());
         
         // 스테이지에서 이미지 경로를 읽어와 MonsterView에 전달
         monsterView.setBossStyle(topicId, stageNo, stage.getImagePath());
         
-        messageArea.setText("* 야생의 " + bossName + "이(가) 나타났다!\n* 힙 메모리 어딘가에서 이상한 기운이 느껴진다.");
+        String intro = "* 보스가 나타났다!\n* 힙 메모리 어딘가에서 이상한 기운이 느껴진다.";
+        if (!guideShown) { // 처음 한 번만 설명하고, 이후 전투에서는 나오지 않음
+            intro += "\n\n[안내]\n하트: 내 체력 (탄막에 맞으면 줄어요)\n남은 공격: 문제를 풀 수 있는 횟수\n"
+                   + "아이템: 전투마다 1개씩! 탄막 중 1·2·3 키, 평소엔 아이템 버튼\n(1 무적 · 2 체력 완충 · 3 문제 개수 초기화)";
+            guideShown = true;
+        }
+        messageArea.setText(intro);
         showCard(centerCards, "msg");
         showCard(bottomCards, "cmd");
         turnCards.show(true);
@@ -204,11 +209,11 @@ public class BattleScreen extends JPanel {
         skipBtn = new JButton("스킵하기");
         skipBtn.setBackground(new Color(25, 30, 50));
         skipBtn.setForeground(Color.YELLOW);
-        skipBtn.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+        skipBtn.setFont(new Font("맑은 고딕", Font.BOLD, 20));
         skipBtn.setBorder(new LineBorder(Color.YELLOW, 1));
         skipBtn.setFocusPainted(false);
-        skipBtn.setPreferredSize(new Dimension(90, 30));
-        skipBtn.setMaximumSize(new Dimension(90, 30));
+        skipBtn.setPreferredSize(new Dimension(130, 40));
+        skipBtn.setMaximumSize(new Dimension(130, 40));
         skipBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
         skipBtn.setVisible(false);
         skipBtn.addActionListener(e -> {
@@ -221,7 +226,7 @@ public class BattleScreen extends JPanel {
         leftHeader.add(skipBtn);
 
         turnLabel.setForeground(Color.WHITE);
-        turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 22));
 
         headerTop.add(leftHeader, BorderLayout.WEST);
         headerTop.add(turnLabel, BorderLayout.EAST);
@@ -232,12 +237,6 @@ public class BattleScreen extends JPanel {
         monsterCenter.setOpaque(false);
         monsterCenter.add(monsterView);
         topPanel.add(monsterCenter);
-        topPanel.add(Box.createVerticalStrut(4));
-
-        bossNameLabel.setForeground(Color.WHITE);
-        bossNameLabel.setFont(new Font("맑은 고딕", Font.BOLD, 20));
-        bossNameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        topPanel.add(bossNameLabel);
         topPanel.add(Box.createVerticalStrut(4));
 
         bossHpBar.setStringPainted(true);
@@ -494,7 +493,7 @@ public class BattleScreen extends JPanel {
         JButton b = new JButton(text);
         b.setBackground(new Color(25, 30, 50));
         b.setForeground(Color.WHITE);
-        b.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        b.setFont(new Font("맑은 고딕", Font.BOLD, 22));
         b.setOpaque(true);
         b.setContentAreaFilled(true);
         b.setPreferredSize(new Dimension(0, 70));
@@ -593,7 +592,11 @@ public class BattleScreen extends JPanel {
             return;
         }
         // 보스 HP가 문제 수보다 많으면 문제를 다 맞힌 뒤 처음부터 다시 출제
-        if (pool.isEmpty()) pool = new ArrayList<>(allQuestions);
+        if (pool.isEmpty()) {
+            pool = new ArrayList<>(allQuestions);
+            // 아이템 등으로 전투가 이어져 문제를 다시 채울 때, 방금 푼 문제가 바로 또 나오지 않게 뺌
+            if (pool.size() > 1 && current != null) pool.remove(current);
+        }
         if (pool.isEmpty()) return;
         current = pool.get(random.nextInt(pool.size()));
 
@@ -627,8 +630,8 @@ public class BattleScreen extends JPanel {
     private void finishQuiz(boolean correct, String prefix) {
         timer.stop();
         engine.submitAnswer(correct);
+        pool.remove(current);   // 맞든 틀리든 한 번 낸 문제는 이번 전투에서 다시 내지 않음 (같은 문제 중복 출제 방지)
         if (correct) {
-            pool.remove(current);
             monsterView.hit();
         }
         updateStatus();
@@ -655,7 +658,7 @@ public class BattleScreen extends JPanel {
             // 승리: 정답·해설과 "확인" 버튼 없이, 보스 베는 연출이 끝나면 맵으로 → 클리어 창(또는 축하 화면)
             // 연출 동안에는 보스와 처치 메시지만 보여 주고 버튼은 숨김 (선택지 연타로 두 번 끝나지 않게)
             // 소리는 마지막 일격의 베기 효과음만 (bossdeath는 쓰지 않음)
-            messageArea.setText("* " + engine.getBossName() + "을(를) 쓰러뜨렸다!");
+            messageArea.setText("* 보스를 쓰러뜨렸다!");
             showCard(centerCards, "msg");
             showCard(bottomCards, "wait");
             Timer toClear = new Timer(WIN_DELAY_MS, e -> {

@@ -33,6 +33,7 @@ public class NameQuizPanel extends JPanel {
     public static final int QUIZ_COUNT = 5;         // 스테이지 문제 중 무작위로 낼 개수
     private List<NameQuiz> quizzes = new ArrayList<>(); // 이번 전투에 낼 문제 (순서대로)
     private int index;                                // 다음에 낼 문제 위치
+    private int stageNo;                              // 이번 전투의 스테이지 (문제를 다시 섞을 때 사용)
     private NameQuiz current;
     private boolean finished = true;   // 답 입력이 끝났는지
     private Timer afterResult;         // 결과를 잠깐 보여 준 뒤 다음 단계로 넘어가는 타이머
@@ -66,7 +67,7 @@ public class NameQuizPanel extends JPanel {
         // 왼쪽: 사진 (남는 공간을 모두 차지해 크게 표시)
         imageLabel.setPreferredSize(new Dimension(IMG_W, IMG_H));
         imageLabel.setForeground(Color.LIGHT_GRAY);
-        imageLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 15));
+        imageLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 20));
         imageLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         box.add(imageLabel, BorderLayout.CENTER);
 
@@ -122,6 +123,7 @@ public class NameQuizPanel extends JPanel {
     public int prepare(int stageNo) {
         if (manager == null) manager = new NameQuizManager(DIR + "name_quiz.txt");
         stop();
+        this.stageNo = stageNo;
         guide.setText(guideHtml(promptFor(stageNo), "입력 후 Enter"));
         quizzes = pickRandom(manager.findByStage(stageNo), QUIZ_COUNT, random);
         index = 0;
@@ -138,8 +140,18 @@ public class NameQuizPanel extends JPanel {
     }
 
     // 다음 문제 출제 (공격 버튼, 또는 탄막이 끝난 뒤)
+    // 낼 문제를 다 썼는데 전투가 이어질 때(예: 문제 개수 초기화 아이템) 다시 섞어서 계속 (멈춤 방지)
+    private void refill() {
+        List<NameQuiz> next = pickRandom(manager.findByStage(stageNo), QUIZ_COUNT, random);
+        // 방금 낸 문제가 바로 또 나오지 않게, 맨 앞이면 뒤로 보냄
+        if (current != null && next.size() > 1 && next.get(0) == current) Collections.swap(next, 0, next.size() - 1);
+        quizzes = next;
+        index = 0;
+    }
+
     public void startNext() {
-        if (index >= quizzes.size()) return;
+        if (index >= quizzes.size()) refill();
+        if (quizzes.isEmpty()) return;
         current = quizzes.get(index++);
         finished = false;
 
@@ -205,7 +217,7 @@ public class NameQuizPanel extends JPanel {
 
     // 질문은 크게, 진행·안내 문구는 아랫줄에 작게 (오른쪽 영역 너비에 맞춤)
     private static String guideHtml(String prompt, String sub) {
-        return "<html>" + prompt + "<br><span style='font-size:16pt;font-weight:normal;color:#b0b0b0'>"
+        return "<html>" + prompt + "<br><span style='font-size:20pt;font-weight:normal;color:#b0b0b0'>"
                 + sub + "</span></html>";
     }
 

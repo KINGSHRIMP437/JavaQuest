@@ -107,15 +107,15 @@ public class ItemIcon implements Icon {
 
             // 숫자 키 배지 (민트 원)
             g2.setColor(MINT);
-            g2.fillOval(1, 0, 18, 18);
+            g2.fillOval(1, 0, 22, 22);
             g2.setColor(new Color(4, 52, 44));
-            g2.setFont(new Font("맑은 고딕", Font.BOLD, 11));
-            centerText(g2, String.valueOf(type + 1), 10, 9);
+            g2.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+            centerText(g2, String.valueOf(type + 1), 12, 11);
 
             // 개수 배지
-            g2.setFont(new Font("맑은 고딕", Font.BOLD, 11));
+            g2.setFont(new Font("맑은 고딕", Font.BOLD, 14));
             FontMetrics fm = g2.getFontMetrics();
-            int w = fm.stringWidth(count) + 8, h = 16;
+            int w = fm.stringWidth(count) + 10, h = 20;
             int cx = bx + bs - w + 6, cy = by + bs - h + 6;
             g2.setColor(BG);
             g2.fillRoundRect(cx, cy, w, h, 8, 8);
