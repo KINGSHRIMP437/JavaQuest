@@ -42,6 +42,7 @@ public class BattleScreen extends JPanel {
     private JButton skipBtn;   // 시연용: 무적 모드에서만 왼쪽 위에 보임, 나의 턴(명령 고르기)에만 누를 수 있음
     private final TurnCards turnCards = new TurnCards(this);   // 오른쪽 위 턴 카드 (턴이 바뀌면 튀어나왔다가 들어감)
     private JProgressBar bossHpBar = new JProgressBar();
+    private JLabel bossLevelLabel = new JLabel("");   // 체력바 왼쪽 위: Lv.1 / Lv.2 / Boss
     
     private JLabel[] hearts = new JLabel[MAX_HEARTS];
     private JPanel heartRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
@@ -81,6 +82,7 @@ public class BattleScreen extends JPanel {
 
         timer = new Timer(100, e -> tick());
         flashTimer = new Timer(100, e -> flashStep());
+        dodgeGamePanel.setInvincibleCheck(engine::isInvincible);   // 무적 중 플레이어 네모는 노란색
         invincibleTimer = new Timer(100, e -> {
             updateStatus();
             if (!engine.isInvincible()) invincibleTimer.stop();   // 무적이 끝나면 원래대로 돌리고 멈춤
@@ -110,6 +112,7 @@ public class BattleScreen extends JPanel {
         lastHearts = engine.getPlayerHearts();
 
         stageLabel.setText("STAGE " + stageNo + " · " + topicName);
+        bossLevelLabel.setText(stageNo >= 3 ? "Boss" : "Lv." + stageNo);
         bossHpBar.setMaximum(engine.getBossMaxHp());
         bossHpBar.setValue(engine.getBossHp());
         
@@ -229,7 +232,7 @@ public class BattleScreen extends JPanel {
         turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 22));
 
         headerTop.add(leftHeader, BorderLayout.WEST);
-        headerTop.add(turnLabel, BorderLayout.EAST);
+        headerTop.add(turnLabel, BorderLayout.EAST);   // 오른쪽 위 (턴 카드는 이 글자 아래로 내려 그림)
         topPanel.add(headerTop);
         topPanel.add(Box.createVerticalStrut(4));
 
@@ -243,10 +246,18 @@ public class BattleScreen extends JPanel {
         bossHpBar.setForeground(new Color(220, 50, 50));
         bossHpBar.setBackground(new Color(30, 35, 50));
         bossHpBar.setBorder(new LineBorder(Color.GRAY, 1));
-        bossHpBar.setPreferredSize(new Dimension(500, 22));
-        bossHpBar.setMaximumSize(new Dimension(500, 22));
-        bossHpBar.setAlignmentX(Component.CENTER_ALIGNMENT);
-        topPanel.add(bossHpBar);
+        bossHpBar.setPreferredSize(new Dimension(500, 26));
+        bossHpBar.setMaximumSize(new Dimension(500, 26));
+        // 체력바 + 왼쪽 위 레벨 글자 (체력바와 같은 폭으로 묶어 가운데 정렬)
+        bossLevelLabel.setForeground(Color.WHITE);
+        bossLevelLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        JPanel hpBlock = new JPanel(new BorderLayout(0, 2));
+        hpBlock.setOpaque(false);
+        hpBlock.add(bossLevelLabel, BorderLayout.NORTH);
+        hpBlock.add(bossHpBar, BorderLayout.CENTER);
+        hpBlock.setMaximumSize(new Dimension(500, 50));
+        hpBlock.setAlignmentX(Component.CENTER_ALIGNMENT);
+        topPanel.add(hpBlock);
 
         add(topPanel, BorderLayout.NORTH);
     }
@@ -681,6 +692,8 @@ public class BattleScreen extends JPanel {
     @Override
     protected void paintChildren(Graphics g) {
         super.paintChildren(g);
+        // 턴 카드는 오른쪽 위 `남은 공격` 글자 바로 아래부터 (창 크기·글자 크기가 달라도 안 겹치게)
+        turnCards.setTop(SwingUtilities.convertPoint(turnLabel, 0, turnLabel.getHeight(), this).y + 8);
         Point p = SwingUtilities.convertPoint(dodgeGamePanel, 0, 0, this);   // 조여 오는 원: 탄막 필드 밖(보스 쪽)까지
         dodgeGamePanel.paintOverlay(g, p.x, p.y);
         turnCards.paint(g, getWidth(), monsterView.normalImage);
@@ -988,8 +1001,9 @@ public class BattleScreen extends JPanel {
 
                 int drawW = 200;
                 int drawH = (int) (((double) imgH / imgW) * drawW);
-                if (drawH > 130) {
-                    drawH = 130;
+                int maxH = Math.min(130, getHeight());   // 보스 칸(높이 110)보다 크면 위아래가 잘리므로 칸 높이까지만
+                if (drawH > maxH) {
+                    drawH = maxH;
                     drawW = (int) (((double) imgW / imgH) * drawH);
                 }
 

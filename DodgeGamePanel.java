@@ -79,6 +79,13 @@ public class DodgeGamePanel extends JPanel {
     private static final double SHRINK_NEXT = 0.6;   // 다음 원이 들어오는 간격 = 줄어드는 시간 × 0.6
     // 구슬 그림은 미리 한 번만 그려 두고 찍기만 함 (매 프레임 구슬 수백 개를 원으로 그리면 패턴 시작 때 끊김)
     private static final java.awt.image.BufferedImage ORB_SPRITE = makeOrbSprite();
+    // 유도 미사일: 큰 미사일이 필드 가장자리(플레이어 반대편)에 나타나 잠깐 뒤 출발, HOMING 시간 동안 플레이어 쪽으로 방향을 틀며 날아옴
+    // (방향을 트는 빠르기에 한계가 있어서 가까이 왔을 때 옆으로 비키면 피할 수 있음), 유도가 끝나면 그 방향으로 곧게 날아가 필드 밖으로
+    // 패턴 한 줄: {시작, HOMING, 0, 미사일 수, 유도 시간(ms), 빠르기(px/s), 방향 트는 빠르기(도/초)}. 여러 개면 필드 가운데 기준으로 고르게 나눈 방향에서 나옴
+    private static final int HOMING = 17;
+    private static final int HOMING_APPEAR = 600;    // 나타나서 출발까지 (깜빡임, 판정 없음)
+    private static final int HOMING_AFTER = 1500;    // 유도가 끝나고 곧게 날아가는 시간
+    private static final int MISSILE_HIT_R = 16;     // 미사일 판정 반지름 (플레이어 20px)
     private static final int BOX_SIDE = 160;       // 줄어든 정사각형 한 변 (세로 4칸 → 칸 40px, 플레이어 20px)
     private static final int BOX_LANES = 4;
     private static final int BOX_SHRINK_MS = 300;  // 필드가 줄어드는 시간 (아주 빠르게)
@@ -106,6 +113,7 @@ public class DodgeGamePanel extends JPanel {
         {1800, 450, 2600},  // GRIDT: 포탑 위치를 보고 안전 칸을 찾을 시간 1.8초
         {1500, 450, 2300},  // GRIDT1: 1.5초
         {0, 0, 0},   // SHRINK: 길이는 eventLength에서 따로 계산
+        {0, 0, 0},   // HOMING: 길이는 eventLength에서 따로 계산
     };
     private static final int RING_LOCK_MS = 250;   // 원형 포탑이 발사 직전 조준을 고정하는 시간
     private static final int RING_BEAM_W = 34;
@@ -128,7 +136,7 @@ public class DodgeGamePanel extends JPanel {
 
     // 스테이지(난이도)별 플로우 목록: [0] = 1스테이지(쉬움), [1] = 2스테이지(중간), [2] = 3스테이지(어려움)
     // 교수님 피드백(상대 턴이 너무 김): 플로우 길이를 예전(13~23초)의 절반쯤(7.5~10.6초)으로, 글자 탄막은 7개 중 2개에만
-    // 적의 턴마다 처음 8번은 안 나온 플로우 중에서 고르고(모두 한 번씩), 그 뒤로는 완전 무작위 (모든 주제 공통)
+    // 적의 턴마다 처음 9번은 안 나온 플로우 중에서 고르고(모두 한 번씩), 그 뒤로는 완전 무작위 (모든 주제 공통)
     private static final Flow[][] FLOWS = {
         {   // ---------- 1스테이지: 쉬움 ----------
             // 플로우 1 (약 9.0초): 위쪽 일제 사격 → 왼쪽 일제 사격 → 가로 순차
@@ -160,6 +168,9 @@ public class DodgeGamePanel extends JPanel {
             // 플로우 8 (약 6.7초): 조여 오는 원 3개가 연달아 (2.6초 동안 줄어듦, 1.56초 간격)
             new Flow(NO_SNOW,
                 new int[]{500, SHRINK, 0, 3, 2600, 160, 0, 0}),   // 쉬움: 틈 넓게
+            // 플로우 9 (약 6.1초): 유도 미사일 1개 (3초 동안 따라옴)
+            new Flow(NO_SNOW,
+                new int[]{500, HOMING, 0, 1, 3000, 190, 110}),
         },
         {   // ---------- 2스테이지: 중간 (순차 사격 강화 SEQ2·유도 레이저 강화 RING2·상중하 강화 LANE3F + 회전 빔·작은 상자·4×4 포탑) ----------
             // 플로우 1 (약 9.6초): 위쪽 일제 사격 → 가로 순차가 위·아래에서 동시에 → 유도 레이저가 2개씩 4번
@@ -189,6 +200,9 @@ public class DodgeGamePanel extends JPanel {
             // 플로우 8 (약 6.6초): 조여 오는 원 4개가 연달아 (2.0초 동안 줄어듦, 1.2초 간격)
             new Flow(NO_SNOW,
                 new int[]{500, SHRINK, 0, 4, 2000, 130, 0, 0}),   // 중간: 틈 조금 좁게, 더 빨리 줄어듦
+            // 플로우 9 (약 6.1초): 유도 미사일 2개가 서로 반대편에서 (3초 동안 따라옴)
+            new Flow(NO_SNOW,
+                new int[]{500, HOMING, 0, 2, 3000, 200, 115}),
         },
         {   // ---------- 3스테이지: 어려움 (중간 구성 + 상중하 어려움 LANE3H·유도 어려움 RING3·회전 빔 강화 SWEEPF·안전 원 ZONE) ----------
             // 플로우 1 (약 9.0초): 위쪽 일제 사격 → 가로 순차 강화 + 세로 순차 동시에
@@ -220,6 +234,9 @@ public class DodgeGamePanel extends JPanel {
             // 플로우 8 (약 8.0초): 조여 오는 원 5개가 연달아 (2.1초 동안 줄어듦, 1.26초 간격)
             new Flow(NO_SNOW,
                 new int[]{500, SHRINK, 0, 5, 2100, 120, 70, 110}),  // 어려움: 원이 돌아서 틈이 움직임 (원마다 초당 70~110도 무작위)
+            // 플로우 9 (약 6.1초): 유도 미사일 3개가 120도씩 떨어진 곳에서 (3초 동안 따라옴)
+            new Flow(NO_SNOW,
+                new int[]{500, HOMING, 0, 3, 3000, 210, 120}),
         },
     };
     private static final Color BEAM_COLOR = new Color(0, 230, 220);
@@ -241,12 +258,16 @@ public class DodgeGamePanel extends JPanel {
     boolean[] reversed = new boolean[0];   // SEQ: 발사 방향 반대로
     double[] ringOffset = new double[0];   // RING: 첫 포탑 각도
     double[][] ringAim = new double[0][];  // RING: 포탑별 현재 조준 각도
-    int[][][] laneShots = new int[0][][];
-    double[][] shrinkSpin = new double[0][];   // SHRINK: 원마다 회전 빠르기 (도/초, 방향 포함)  // LANE3: 이벤트별, 발사마다 {쏘는 줄 비트(위=1, 가운데=2, 아래=4), 오른쪽에서 쏘는 줄 비트}
+    int[][][] laneShots = new int[0][][];  // LANE3: 이벤트별, 발사마다 {쏘는 줄 비트(위=1, 가운데=2, 아래=4), 오른쪽에서 쏘는 줄 비트}
+    double[][] shrinkSpin = new double[0][];   // SHRINK: 원마다 회전 빠르기 (도/초, 방향 포함)
+    double[][] missiles = new double[0][];     // HOMING: 미사일마다 {x, y, 진행 방향(라디안)} × 개수, 마지막 칸 = 직전 프레임 시각 (NaN = 아직 안 나옴)
 
     private final Set<Integer> pressedKeys = new HashSet<>();
     private Consumer<Integer> onFinish;
     private Runnable onHit; // 맞을 때마다 호출될 콜백
+    private java.util.function.BooleanSupplier invincible = () -> false;   // 무적 아이템 사용 중이면 플레이어를 노란색으로
+
+    public void setInvincibleCheck(java.util.function.BooleanSupplier check) { invincible = check; }
     Random rand = new Random();
 
     public DodgeGamePanel(Consumer<Integer> onFinish, Runnable onHit) {
@@ -431,6 +452,7 @@ public class DodgeGamePanel extends JPanel {
         ringAim = new double[n][];
         laneShots = new int[n][][];
         shrinkSpin = new double[n][];
+        missiles = new double[n][];
         for (int i = 0; i < n; i++) {
             int lanes = script[i][3];
             safeLanes[i] = script[i][1] == ALL ? pickSafeLanes(lanes, script[i].length > 4 ? script[i][4] : 1)
@@ -445,6 +467,7 @@ public class DodgeGamePanel extends JPanel {
                 for (int k = 0; k < lanes; k++)
                     ringAim[i][k] = k == 0 ? rand.nextDouble() * Math.PI * 2
                             : ringAim[i][k - 1] + (rand.nextBoolean() ? 1 : -1) * Math.toRadians(60 + rand.nextDouble() * 60);
+            if (script[i][1] == HOMING) { missiles[i] = new double[lanes * 3 + 1]; java.util.Arrays.fill(missiles[i], Double.NaN); }
             if (script[i][1] == SHRINK) {   // 원마다 회전 빠르기는 [최소, 최대]에서 무작위, 도는 방향은 번갈아
                 shrinkSpin[i] = new double[lanes];
                 boolean dir = rand.nextBoolean();
@@ -612,6 +635,7 @@ public class DodgeGamePanel extends JPanel {
                    : e[3];
         if (e[1] == ZONE) return ZONE_WARN + e[3] * ZONE_LEG + FADE_MS;
         if (e[1] == SHRINK) return (int) ((e[3] - 1) * shrinkNext(e[4]) + e[4] + FADE_MS);
+        if (e[1] == HOMING) return HOMING_APPEAR + e[4] + HOMING_AFTER + FADE_MS;
         if (e[1] == RING3) return (int) (SLIDE_MS + ring3Offset(e[4], e[3] - 1) + tm[0] + tm[1] + FADE_MS);
         int vDelay = e[1] == LANE3H && rounds <= 3 ? LANE3H_V_DELAY : 0;   // 마지막이 한 줄 발사면 늦게 나가는 세로 빔까지
         int fade = isGrid(e[1]) ? GRID_FADE_MS : FADE_MS;                   // 4×4 포탑은 더 천천히 사라짐
@@ -713,6 +737,10 @@ public class DodgeGamePanel extends JPanel {
         if (type == ZONE) {
             drawZone(g2, ev, t, playerRect, fr);
             lanes = 0;   // 포탑 없음
+        }
+        if (type == HOMING) {
+            drawHoming(g2, ev, t, playerRect, fr);
+            lanes = 0;
         }
         if (type == SHRINK) {
             drawShrink(g2, ev, t, playerRect, fr);
@@ -880,6 +908,74 @@ public class DodgeGamePanel extends JPanel {
         drawCannon(g2, tx, ty, a - Math.PI / 2, chargeT, chargeLen, fireT);
         g2.setComposite(savedComposite);
         return flash;
+    }
+
+    // HOMING: 미사일 위치는 프레임마다 이어서 계산함 (지난 프레임과의 시간 차만큼 이동)
+    private void drawHoming(Graphics2D g2, int ev, long t, Rectangle playerRect, Rectangle fr) {
+        double[] m = missiles[ev];
+        int n = script[ev][3], homeMs = script[ev][4];
+        double speed = script[ev][5], turn = Math.toRadians(script[ev][6]);
+        double px = playerRect.getCenterX(), py = playerRect.getCenterY();
+        if (Double.isNaN(m[n * 3])) {   // 처음: 플레이어 반대편 가장자리부터 고르게 나눈 방향에 놓고 플레이어를 바라봄
+            double cx = fr.getCenterX(), cy = fr.getCenterY();
+            double base = Math.atan2(cy - py, cx - px);   // 가운데에서 보면 플레이어 반대쪽
+            for (int i = 0; i < n; i++) {
+                double a = base + Math.PI * 2 * i / n;
+                double[] p = edgePoint(fr, a, 30);
+                m[i * 3] = p[0]; m[i * 3 + 1] = p[1]; m[i * 3 + 2] = Math.atan2(py - p[1], px - p[0]);
+            }
+            m[n * 3] = t;
+        }
+        double dt = Math.min(60, t - m[n * 3]) / 1000.0;   // 렉이 있어도 한 번에 너무 멀리 가지 않게
+        m[n * 3] = t;
+        long fly = t - HOMING_APPEAR;   // 출발한 뒤 지난 시간
+        for (int i = 0; i < n; i++) {
+            double x = m[i * 3], y = m[i * 3 + 1], h = m[i * 3 + 2];
+            if (fly >= 0) {
+                if (fly < homeMs) h = steer(h, Math.atan2(py - y, px - x), turn * dt);
+                x += Math.cos(h) * speed * dt;
+                y += Math.sin(h) * speed * dt;
+                m[i * 3] = x; m[i * 3 + 1] = y; m[i * 3 + 2] = h;
+                if (Math.hypot(px - x, py - y) < MISSILE_HIT_R + 9) applyHit();
+            }
+            drawMissile(g2, x, y, h, fly < 0 ? ((t / 100) % 2 == 0 ? 0.9f : 0.35f) : 1f, t);
+        }
+    }
+
+    // 필드 가운데에서 angle 방향으로 나가 벽에 닿는 점에서 inset만큼 안쪽
+    private static double[] edgePoint(Rectangle fr, double angle, double inset) {
+        double cx = fr.getCenterX(), cy = fr.getCenterY(), dx = Math.cos(angle), dy = Math.sin(angle);
+        double k = Math.min(Math.abs(dx) < 1e-9 ? Double.MAX_VALUE : (fr.width / 2.0 - inset) / Math.abs(dx),
+                            Math.abs(dy) < 1e-9 ? Double.MAX_VALUE : (fr.height / 2.0 - inset) / Math.abs(dy));
+        return new double[]{cx + dx * k, cy + dy * k};
+    }
+
+    // 진행 방향 h를 목표 방향 target 쪽으로 최대 maxTurn(라디안)만큼 돌림 (DodgeHomingCheck에서도 씀)
+    static double steer(double h, double target, double maxTurn) {
+        double d = Math.atan2(Math.sin(target - h), Math.cos(target - h));   // -π ~ π
+        return h + Math.max(-maxTurn, Math.min(maxTurn, d));
+    }
+
+    // 큰 미사일: 몸통(흰색) + 빨간 머리 + 꼬리 불꽃(깜빡임). 길이 약 60px
+    private void drawMissile(Graphics2D g0, double x, double y, double h, float alpha, long t) {
+        Graphics2D g = (Graphics2D) g0.create();
+        g.translate(x, y);
+        g.rotate(h);
+        g.scale(1.4, 1.4);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        int flame = 10 + (int) ((t / 40) % 3) * 4;
+        g.setColor(new Color(255, 150, 40, 200));
+        g.fill(new java.awt.geom.Ellipse2D.Double(-22 - flame, -6, flame + 6, 12));
+        g.setColor(new Color(255, 230, 120));
+        g.fill(new java.awt.geom.Ellipse2D.Double(-22 - flame / 2.0, -3, flame / 2.0 + 4, 6));
+        g.setColor(new Color(150, 160, 180));   // 날개
+        g.fillPolygon(new int[]{-20, -10, -14}, new int[]{-12, -6, 0}, 3);
+        g.fillPolygon(new int[]{-20, -10, -14}, new int[]{12, 6, 0}, 3);
+        g.setColor(new Color(235, 240, 248));   // 몸통
+        g.fill(new java.awt.geom.RoundRectangle2D.Double(-20, -8, 32, 16, 8, 8));
+        g.setColor(new Color(230, 50, 50));     // 머리
+        g.fill(new java.awt.geom.Arc2D.Double(4, -8, 20, 16, -90, 180, java.awt.geom.Arc2D.CHORD));
+        g.dispose();
     }
 
     // SHRINK: 원들이 SHRINK_NEXT 간격으로 연달아 가운데로 줄어듦
@@ -1244,7 +1340,7 @@ public class DodgeGamePanel extends JPanel {
 
     // 빔이 발사된 직후 잠깐 화면을 흔든다 (일제 사격이 가장 세게)
     private int[] shakeOffset(long elapsed) {
-        double[] power = {6, 3, 4, 4, 3, 5, 4, 4, 5, 5, 4, 5, 0, 4, 5, 5, 0};   // ALL, SEQ, RING, LANE3, BOX, RING2, SEQ2, LANE3F, SWEEP, SWEEPF, LANE3H, RING3, ZONE, GRID, GRIDT, GRIDT1, SHRINK
+        double[] power = {6, 3, 4, 4, 3, 5, 4, 4, 5, 5, 4, 5, 0, 4, 5, 5, 0, 0};   // ALL, SEQ, RING, LANE3, BOX, RING2, SEQ2, LANE3F, SWEEP, SWEEPF, LANE3H, RING3, ZONE, GRID, GRIDT, GRIDT1, SHRINK, HOMING
         double m = 0;
         for (int ev = 0; ev < script.length; ev++) {
             int type = script[ev][1];
@@ -1261,9 +1357,9 @@ public class DodgeGamePanel extends JPanel {
 
     private void drawPlayer(Graphics g) {
         if (isFlashing) {
-            g.setColor(hitFlashCount % 2 == 0 ? Color.WHITE : Color.RED);
+            g.setColor(hitFlashCount % 2 == 0 ? Color.WHITE : invincible.getAsBoolean() ? new Color(255, 215, 0) : Color.RED);   // 무적 중에 맞으면 흰색·노란색으로만
         } else {
-            g.setColor(hitCooldown ? Color.GRAY : Color.RED);
+            g.setColor(invincible.getAsBoolean() ? new Color(255, 215, 0) : hitCooldown ? Color.GRAY : Color.RED);
         }
         
         g.fillRect(playerX, playerY, 20, 20);

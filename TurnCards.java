@@ -17,6 +17,7 @@ public class TurnCards {
     private boolean mine = true;
     private boolean started = false;  // 아직 아무 턴도 없으면 두 카드 모두 숨김
     private long start;
+    private int top = MY_Y;   // 나의 턴 카드 위쪽 y (적의 턴 카드는 그 아래 EN_Y - MY_Y만큼)
 
     public TurnCards(JComponent owner) {
         this.owner = owner;
@@ -25,6 +26,9 @@ public class TurnCards {
             repaintArea();
         });
     }
+
+    // 카드 위치: 화면의 다른 글자 아래로 내릴 때 (MY_Y보다 위로는 안 올림)
+    public void setTop(int y) { top = Math.max(MY_Y, y); }
 
     // 턴이 바뀜: 그 턴 카드가 튀어나옴
     public void show(boolean mine) {
@@ -39,7 +43,7 @@ public class TurnCards {
 
     private void repaintArea() {
         int w = owner.getWidth();
-        owner.repaint(w - CARD_W - 40, MY_Y - 10, CARD_W + 40, EN_Y + CARD_H - MY_Y + 20);
+        owner.repaint(w - CARD_W - 40, top - 10, CARD_W + 40, EN_Y + CARD_H - MY_Y + 20);
     }
 
     private static double easeOutBack(double p) { double c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
@@ -65,8 +69,8 @@ public class TurnCards {
         long t = elapsed();
         double aw = activeWidth(t), pw = prevWidth(t);
         double shine = t >= OUT_MS && t < OUT_MS + SHINE_MS ? (t - OUT_MS) / (double) SHINE_MS : -1;
-        card(g2, w, MY_Y, mine ? aw : pw, true, mine, mine ? shine : -1, bossImage);
-        card(g2, w, EN_Y, mine ? pw : aw, false, !mine, mine ? -1 : shine, bossImage);
+        card(g2, w, top, mine ? aw : pw, true, mine, mine ? shine : -1, bossImage);
+        card(g2, w, top + EN_Y - MY_Y, mine ? pw : aw, false, !mine, mine ? -1 : shine, bossImage);
         g2.dispose();
     }
 
