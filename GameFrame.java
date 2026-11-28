@@ -32,7 +32,9 @@ public class GameFrame extends JFrame {
 
     public GameFrame() {
         setTitle("JavaQuest - RPG & Quiz");
-        setSize(1050, 850);
+        // 시작 창 크기 1150×920, 단 화면(작업 표시줄 제외)보다 크면 화면에 맞춤 (노트북 배율 125% 등)
+        Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+        setSize(Math.min(1150, screen.width), Math.min(920, screen.height));
         setMinimumSize(new Dimension(900, 760)); // 이보다 작으면 전투화면 선택지가 너무 얇아짐
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);

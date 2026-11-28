@@ -393,10 +393,10 @@ public class DodgeGamePanel extends JPanel {
         if (pressedKeys.contains(KeyEvent.VK_UP)) playerY -= speed;
         if (pressedKeys.contains(KeyEvent.VK_DOWN)) playerY += speed;
 
-        // 필드 안(벽에서 5px 안쪽)에만 있게. 필드가 줄어들면 벽에 밀려 같이 안으로 들어옴
+        // 필드 안에만 있게 (벽 선에 딱 붙을 수 있음). 필드가 줄어들면 벽에 밀려 같이 안으로 들어옴
         Rectangle f = field(panelWidth, panelHeight, System.currentTimeMillis() - startTime);
-        playerX = Math.max(f.x + 5, Math.min(f.x + f.width - 25, playerX));
-        playerY = Math.max(f.y + 5, Math.min(f.y + f.height - 25, playerY));
+        playerX = Math.max(f.x, Math.min(f.x + f.width - 20, playerX));
+        playerY = Math.max(f.y, Math.min(f.y + f.height - 20, playerY));
     }
 
     // 지금 필드 영역 (테두리 안쪽). 평소엔 패널 가장자리에서 20px 안쪽,
@@ -500,7 +500,7 @@ public class DodgeGamePanel extends JPanel {
 
         g.setColor(Color.WHITE);
         Rectangle fieldNow = field(panelWidth, panelHeight, elapsed);
-        g.drawRect(fieldNow.x - 5, fieldNow.y - 5, fieldNow.width + 10, fieldNow.height + 10);
+        g.drawRect(fieldNow.x - 1, fieldNow.y - 1, fieldNow.width + 1, fieldNow.height + 1);   // 벽 = 필드 바로 바깥 (빔·플레이어가 벽에 딱 닿게)
 
         String[] symbols;
         if ("coding".equals(currentTopicId)) {
