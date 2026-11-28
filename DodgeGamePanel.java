@@ -243,7 +243,7 @@ public class DodgeGamePanel extends JPanel {
         },
     };
     private static final Color BEAM_COLOR = new Color(0, 230, 220);
-    private static final Font BULLET_FONT = new Font("Consolas", Font.BOLD, 13);
+    private static final Font BULLET_FONT = new Font("Consolas", Font.BOLD, 15);
     private final int[] recentY = new int[3];   // 옆으로 오는 탄막: 최근에 나온 높이 (겹침 방지)
     private int recentIdx = 0;
 
@@ -1380,7 +1380,7 @@ public class DodgeGamePanel extends JPanel {
         g2.drawRect(-8, 6, 16, 10);
         g2.setStroke(new BasicStroke(1));
         g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Consolas", Font.BOLD, 12));
+        g2.setFont(new Font("Consolas", Font.BOLD, 14));
         g2.drawString("</>", -11, 0);
 
         // 충전 빛: 포구에 빛이 점점 커지며 깜빡임

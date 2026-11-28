@@ -109,11 +109,11 @@ public class ItemIcon implements Icon {
             g2.setColor(MINT);
             g2.fillOval(1, 0, 22, 22);
             g2.setColor(new Color(4, 52, 44));
-            g2.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+            g2.setFont(new Font("맑은 고딕", Font.BOLD, 16));
             centerText(g2, String.valueOf(type + 1), 12, 11);
 
             // 개수 배지
-            g2.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+            g2.setFont(new Font("맑은 고딕", Font.BOLD, 16));
             FontMetrics fm = g2.getFontMetrics();
             int w = fm.stringWidth(count) + 10, h = 20;
             int cx = bx + bs - w + 6, cy = by + bs - h + 6;

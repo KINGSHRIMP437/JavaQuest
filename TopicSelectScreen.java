@@ -12,7 +12,7 @@ public class TopicSelectScreen extends DungeonBackground {
     private static final String[][] TOPICS = {
         {"코딩", "자바, 파이썬 등\n프로그래밍 문제", "coding"},
         {"상식", "일상 및 일반\n상식 문제", "common"},
-        {"이름 맞추기", "사진을 보고\n인물·포켓몬 맞추기", "name"}
+        {"이름 맞추기", "사진을 보고\n인물·음식 이름 맞추기", "name"}
     };
 
     private final Map<String, Integer> stageBestStars;   // GameFrame의 클리어 기록 (Key: "topicId_stageNo")
@@ -86,35 +86,48 @@ public class TopicSelectScreen extends DungeonBackground {
         // 보스 이미지는 백엔드(monsters.txt → DataLoader)에서 STAGE 3 보스의 이미지 경로를 받아 온다.
         Stage finalBoss = DataLoader.loadStage("monsters.txt", t[2], 3);
         medallions[i] = new BossMedallion(UiTheme.loadImage(finalBoss.getImagePath()));
-        medallions[i].setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JLabel desc = UiTheme.label("<html><center>" + t[1].replace("\n", "<br>") + "</center></html>",
                 new Color(226, 232, 240), Font.PLAIN, 17);
 
-        JPanel middle = new JPanel();
+        JPanel middle = new JPanel(new GridBagLayout());
         middle.setOpaque(false);
-        middle.setLayout(new BoxLayout(middle, BoxLayout.Y_AXIS));
-        middle.add(Box.createVerticalStrut(28));
-        middle.add(Box.createVerticalGlue());
-        middle.add(medallions[i]);
-        middle.add(Box.createVerticalStrut(24));
-        middle.add(desc);
-        middle.add(Box.createVerticalGlue());
-        middle.add(Box.createVerticalStrut(28));
+        GridBagConstraints mc = new GridBagConstraints();
+        mc.gridx = 0;
+        mc.weightx = 1;
+        mc.fill = GridBagConstraints.VERTICAL;
+        mc.weighty = 1;
+        mc.gridy = 0;
+        middle.add(Box.createVerticalGlue(), mc);
+        mc.fill = GridBagConstraints.NONE;
+        mc.weighty = 0;
+        mc.gridy = 1;
+        mc.anchor = GridBagConstraints.CENTER;
+        middle.add(medallions[i], mc);
+        mc.gridy = 2;
+        mc.insets = new Insets(24, 0, 0, 0);
+        middle.add(desc, mc);
+        mc.gridy = 3;
+        mc.insets = new Insets(0, 0, 0, 0);
+        mc.fill = GridBagConstraints.VERTICAL;
+        mc.weighty = 1;
+        middle.add(Box.createVerticalGlue(), mc);
 
         // 아래: 구분선 + 상태(왼쪽) + 별 개수(오른쪽)
         statusLabels[i] = new JLabel();
         statusLabels[i].setFont(UiTheme.font(Font.BOLD, 13));
+        statusLabels[i].setHorizontalAlignment(SwingConstants.CENTER);
         starLabels[i] = new JLabel();
         starLabels[i].setFont(UiTheme.font(Font.BOLD, 13));
+        starLabels[i].setHorizontalAlignment(SwingConstants.CENTER);
 
-        JPanel footer = new JPanel(new BorderLayout());
+        JPanel footer = new JPanel(new GridLayout(2, 1, 0, 2));
         footer.setOpaque(false);
         footer.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(1, 0, 0, 0, UiTheme.LINE),
                 BorderFactory.createEmptyBorder(12, 2, 0, 2)));
-        footer.add(statusLabels[i], BorderLayout.WEST);
-        footer.add(starLabels[i], BorderLayout.EAST);
+        footer.add(statusLabels[i]);
+        footer.add(starLabels[i]);
 
         card.add(head, BorderLayout.NORTH);
         card.add(middle, BorderLayout.CENTER);

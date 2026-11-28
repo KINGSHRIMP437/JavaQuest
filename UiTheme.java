@@ -54,7 +54,8 @@ public final class UiTheme {
                 }
             }
         }
-        return new Font(fontFamily, style, size);
+        int readableSize = size <= 18 ? size + 2 : size <= 30 ? size + 1 : size;
+        return new Font(fontFamily, style, readableSize);
     }
 
     // ===== 라벨 =====
