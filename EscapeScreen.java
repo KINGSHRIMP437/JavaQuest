@@ -122,16 +122,16 @@ public class EscapeScreen extends JPanel {
         g.drawString("♥", W / 2 - fm.stringWidth("♥") / 2, dy + dh - 14);
 
         // 제목 + 이야기
-        center(g, "ESCAPE CLEAR", new Font(F, Font.BOLD, 18), MINT, 285);
+        center(g, "ESCAPE CLEAR", new Font(F, Font.BOLD, 20), MINT, 285);
         Font tf = new Font(F, Font.BOLD, 54);
         g.setFont(tf);
         g.setColor(new Color(0, 0, 0, 120));
         g.drawString("탈출 성공!", (W - g.getFontMetrics().stringWidth("탈출 성공!")) / 2 + 3, 351);
         center(g, "탈출 성공!", tf, GOLD, 348);
-        Font sf = new Font(F, Font.PLAIN, 21);
+        Font sf = new Font(F, Font.PLAIN, 23);
         center(g, "마지막 보스가 쓰러지자, 굳게 닫혀 있던 출구가 열렸다.", sf, new Color(225, 230, 240), 400);
         center(g, "탄막을 피하고 퀴즈를 풀며 지나온 길이 빛 속으로 이어진다.", sf, new Color(225, 230, 240), 434);
-        center(g, "당신은 마침내 던전에서 탈출했다.", new Font(F, Font.BOLD, 22), Color.WHITE, 474);
+        center(g, "당신은 마침내 던전에서 탈출했다.", new Font(F, Font.BOLD, 24), Color.WHITE, 474);
 
         // 쓰러뜨린 보스 (흐리게 + CLEAR 도장)
         int cw = 200, ch = 150, gap = 28, cy = 510;
@@ -158,12 +158,12 @@ public class EscapeScreen extends JPanel {
             g2.setColor(new Color(255, 90, 90));
             g2.setStroke(new BasicStroke(3f));
             g2.drawRoundRect(x + cw / 2 - 58, cy + 42, 116, 38, 8, 8);
-            g2.setFont(new Font(F, Font.BOLD, 24));
+            g2.setFont(new Font(F, Font.BOLD, 26));
             FontMetrics f2 = g2.getFontMetrics();
             g2.drawString("CLEAR", x + cw / 2 - f2.stringWidth("CLEAR") / 2, cy + 70);
             g2.dispose();
 
-            g.setFont(new Font(F, Font.BOLD, 18));
+            g.setFont(new Font(F, Font.BOLD, 20));
             g.setColor(Color.WHITE);
             fm = g.getFontMetrics();
             g.drawString(BOSSES[i][1], x + (cw - fm.stringWidth(BOSSES[i][1])) / 2, cy + 132);

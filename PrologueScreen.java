@@ -137,7 +137,7 @@ public class PrologueScreen extends JPanel {
     // ---------------- 1쪽: 이야기 + 3단계 ----------------
     private void paintStory(Graphics2D g) {
         int W = BASE_W;
-        center(g, "PROLOGUE", new Font(F, Font.BOLD, 18), MINT, 70);
+        center(g, "PROLOGUE", new Font(F, Font.BOLD, 20), MINT, 70);
         center(g, "던전에서 탈출하라", new Font(F, Font.BOLD, 46), Color.WHITE, 130);
         g.setColor(MINT);
         g.fillRect(W / 2 - 40, 152, 80, 3);
@@ -147,9 +147,9 @@ public class PrologueScreen extends JPanel {
             "출구로 가는 길은 지식의 보스들이 가로막고 있다.",
             "쏟아지는 탄막을 피하고, 퀴즈를 맞혀 보스를 쓰러뜨려라.",
         };
-        Font sf = new Font(F, Font.PLAIN, 21);
+        Font sf = new Font(F, Font.PLAIN, 23);
         for (int i = 0; i < story.length; i++) center(g, story[i], sf, new Color(220, 225, 235), 205 + i * 36);
-        center(g, "모든 보스를 물리치면, 이 모험에서 탈출할 수 있다.", new Font(F, Font.BOLD, 22), GOLD, 205 + 3 * 36 + 6);
+        center(g, "모든 보스를 물리치면, 이 모험에서 탈출할 수 있다.", new Font(F, Font.BOLD, 24), GOLD, 205 + 3 * 36 + 6);
 
         int cw = 290, ch = 250, gap = 30, cy = 370;
         int cx0 = (W - (cw * 3 + gap * 2)) / 2;
@@ -167,7 +167,7 @@ public class PrologueScreen extends JPanel {
             g.drawRoundRect(x, cy, cw, ch, 18, 18);
             g.fillOval(x + 16, cy + 16, 34, 34);   // 번호 동그라미
             g.setColor(BG);
-            g.setFont(new Font(F, Font.BOLD, 18));
+            g.setFont(new Font(F, Font.BOLD, 20));
             FontMetrics fm = g.getFontMetrics();
             g.drawString(txt[i][0], x + 33 - fm.stringWidth(txt[i][0]) / 2, cy + 40);
 
@@ -176,11 +176,11 @@ public class PrologueScreen extends JPanel {
             else if (i == 1) drawQuiz(g, art);
             else drawBoss(g, art);
 
-            g.setFont(new Font(F, Font.BOLD, 24));
+            g.setFont(new Font(F, Font.BOLD, 26));
             g.setColor(Color.WHITE);
             fm = g.getFontMetrics();
             g.drawString(txt[i][1], x + (cw - fm.stringWidth(txt[i][1])) / 2, cy + 198);
-            g.setFont(new Font(F, Font.PLAIN, 16));
+            g.setFont(new Font(F, Font.PLAIN, 18));
             g.setColor(new Color(180, 190, 205));
             fm = g.getFontMetrics();
             g.drawString(txt[i][2], x + (cw - fm.stringWidth(txt[i][2])) / 2, cy + 222);
@@ -196,11 +196,11 @@ public class PrologueScreen extends JPanel {
     // ---------------- 2쪽: 아이템 ----------------
     private void paintItems(Graphics2D g) {
         int W = BASE_W;
-        center(g, "ITEM", new Font(F, Font.BOLD, 18), MINT, 70);
+        center(g, "ITEM", new Font(F, Font.BOLD, 20), MINT, 70);
         center(g, "위기를 넘기는 아이템", new Font(F, Font.BOLD, 46), Color.WHITE, 130);
         g.setColor(MINT);
         g.fillRect(W / 2 - 40, 152, 80, 3);
-        Font sf = new Font(F, Font.PLAIN, 21);
+        Font sf = new Font(F, Font.PLAIN, 23);
         center(g, "전투를 시작할 때마다 종류별로 1개씩 받는다.", sf, new Color(220, 225, 235), 205);
         center(g, "숫자 키 1 · 2 · 3 으로 바로 쓰거나, 명령 막대의 아이템 버튼으로 쓸 수 있다.", sf, new Color(220, 225, 235), 241);
 
@@ -238,7 +238,7 @@ public class PrologueScreen extends JPanel {
             g.setColor(MINT);
             g.fillOval(bx - 14, by - 14, 34, 34);
             g.setColor(new Color(4, 52, 44));
-            g.setFont(new Font(F, Font.BOLD, 19));
+            g.setFont(new Font(F, Font.BOLD, 21));
             FontMetrics fm = g.getFontMetrics();
             g.drawString(items[i][0], bx + 3 - fm.stringWidth(items[i][0]) / 2, by + 10);
 
@@ -246,14 +246,14 @@ public class PrologueScreen extends JPanel {
             g.setColor(c);
             fm = g.getFontMetrics();
             g.drawString(items[i][1], x + (cw - fm.stringWidth(items[i][1])) / 2, cy + 192);
-            g.setFont(new Font(F, Font.PLAIN, 17));
+            g.setFont(new Font(F, Font.PLAIN, 19));
             g.setColor(new Color(220, 225, 235));
             fm = g.getFontMetrics();
             g.drawString(items[i][2], x + (cw - fm.stringWidth(items[i][2])) / 2, cy + 228);
             g.drawString(items[i][3], x + (cw - fm.stringWidth(items[i][3])) / 2, cy + 252);
 
             // 사용법 알약
-            g.setFont(new Font(F, Font.BOLD, 14));
+            g.setFont(new Font(F, Font.BOLD, 16));
             fm = g.getFontMetrics();
             int pw = fm.stringWidth(items[i][4]) + 28, ph = 30, px = x + (cw - pw) / 2, py = cy + 278;
             g.setColor(new Color(20, 26, 46));
@@ -265,7 +265,7 @@ public class PrologueScreen extends JPanel {
             g.drawString(items[i][4], px + 14, py + 20);
         }
         center(g, "효과가 없을 때(하트가 가득하거나, 공격 횟수가 그대로일 때)는 아이템이 줄지 않는다.",
-                new Font(F, Font.PLAIN, 15), new Color(140, 150, 170), 645);
+                new Font(F, Font.PLAIN, 17), new Color(140, 150, 170), 645);
     }
 
     // 쪽 표시: 현재 쪽은 긴 민트 막대, 나머지는 회색 점 + "1 / 2"
@@ -276,7 +276,7 @@ public class PrologueScreen extends JPanel {
             if (i == page) { g.setColor(MINT); g.fillRoundRect(x - 6, y, 26, 10, 10, 10); }
             else { g.setColor(new Color(90, 100, 125)); g.fillOval(x + 2, y, 10, 10); }
         }
-        center(g, (page + 1) + " / 2", new Font(F, Font.PLAIN, 13), new Color(130, 140, 160), y + 34);
+        center(g, (page + 1) + " / 2", new Font(F, Font.PLAIN, 15), new Color(130, 140, 160), y + 34);
     }
 
     static void center(Graphics2D g, String s, Font f, Color c, int y) {
@@ -314,7 +314,7 @@ public class PrologueScreen extends JPanel {
         g.setColor(MINT);
         g.fillRect(a.x, a.y, (int) (a.width * 0.65), 4); // 시간 막대
         g.setColor(Color.WHITE);
-        g.setFont(new Font(F, Font.BOLD, 15));
+        g.setFont(new Font(F, Font.BOLD, 17));
         g.drawString("Q. 정답은?", a.x + 10, a.y + 26);
         int bw = (a.width - 30) / 2, bh = 26;
         g.setStroke(new BasicStroke(1f));
@@ -326,7 +326,7 @@ public class PrologueScreen extends JPanel {
             g.setColor(ok ? MINT : Color.GRAY);
             g.drawRect(x, y, bw, bh);
             g.setColor(ok ? MINT : new Color(200, 200, 200));
-            g.setFont(new Font(F, ok ? Font.BOLD : Font.PLAIN, 13));
+            g.setFont(new Font(F, ok ? Font.BOLD : Font.PLAIN, 15));
             g.drawString((i + 1) + ".  " + (ok ? "정답!" : "보기"), x + 8, y + 18);
         }
     }

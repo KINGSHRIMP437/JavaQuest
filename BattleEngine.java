@@ -1,6 +1,7 @@
 // 전투 규칙 (화면 코드 없음)
 public class BattleEngine {
     public static final int MAX_HEARTS = 5;   // 교수님 피드백: 너무 어려워서 3 → 5
+    public static final int MAX_ATTACKS = 10;  // 전투 시작·문제 초기화 시 남은 문제 수 상한
     private int playerHearts = MAX_HEARTS;
     private int attacksLeft;
     private String bossName;
@@ -12,8 +13,8 @@ public class BattleEngine {
         this.bossName = bossName;
         this.bossHp = bossHp;
         this.bossMaxHp = bossHp;
-        this.attacksLeft = attacks;
-        this.initialAttacks = attacks;
+        this.attacksLeft = Math.max(0, Math.min(MAX_ATTACKS, attacks));
+        this.initialAttacks = this.attacksLeft;
         this.playerHearts = MAX_HEARTS;
         this.invincibleUntil = 0;
     }

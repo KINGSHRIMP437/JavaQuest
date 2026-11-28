@@ -67,7 +67,7 @@ public class NameQuizPanel extends JPanel {
         // 왼쪽: 사진 (남는 공간을 모두 차지해 크게 표시)
         imageLabel.setPreferredSize(new Dimension(IMG_W, IMG_H));
         imageLabel.setForeground(Color.LIGHT_GRAY);
-        imageLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 20));
+        imageLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 22));
         imageLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         box.add(imageLabel, BorderLayout.CENTER);
 

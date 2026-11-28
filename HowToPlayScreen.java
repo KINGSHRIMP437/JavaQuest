@@ -93,7 +93,7 @@ public class HowToPlayScreen extends DungeonBackground {
 
         JLabel headLabel = new JLabel(heading, SwingConstants.CENTER);
         headLabel.setForeground(Color.YELLOW);
-        headLabel.setFont(new Font("맑은 고딕", Font.BOLD, 24));
+        headLabel.setFont(new Font("맑은 고딕", Font.BOLD, 26));
 
         JPanel centerWrap = new JPanel(new BorderLayout(0, 16));
         centerWrap.setOpaque(false);
@@ -101,7 +101,7 @@ public class HowToPlayScreen extends DungeonBackground {
 
         JLabel bodyLabel = new JLabel(bodyHtml, SwingConstants.CENTER);
         bodyLabel.setForeground(Color.WHITE);
-        bodyLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 18));
+        bodyLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 20));
         centerWrap.add(bodyLabel, BorderLayout.CENTER);
 
         card.add(headLabel, BorderLayout.NORTH);
@@ -139,7 +139,7 @@ public class HowToPlayScreen extends DungeonBackground {
                     g2.drawOval(cx - r, cy - r, r * 2, r * 2);
 
                     g2.setColor(Color.WHITE);
-                    g2.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+                    g2.setFont(new Font("맑은 고딕", Font.BOLD, 18));
                     String text = "S" + (i + 1);
                     FontMetrics fm = g2.getFontMetrics();
                     g2.drawString(text, cx - fm.stringWidth(text) / 2, cy + fm.getAscent() / 2 - 2);
@@ -183,7 +183,7 @@ public class HowToPlayScreen extends DungeonBackground {
                 g2.drawRoundRect(x, y, size, size, 10, 10);
 
                 g2.setColor(Color.WHITE);
-                g2.setFont(new Font("맑은 고딕", Font.BOLD, 20));
+                g2.setFont(new Font("맑은 고딕", Font.BOLD, 22));
                 FontMetrics fm = g2.getFontMetrics();
                 g2.drawString(arrow, x + (size - fm.stringWidth(arrow)) / 2, y + (size + fm.getAscent()) / 2 - 3);
             }

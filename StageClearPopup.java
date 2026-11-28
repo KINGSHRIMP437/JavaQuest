@@ -118,7 +118,7 @@ public class StageClearPopup extends JComponent {
         }
 
         if (unlockedStage > 0) {
-            drawCentered(g2, "STAGE " + unlockedStage + " 열림!", new Font("맑은 고딕", Font.BOLD, 22), new Color(100, 255, 150), y + 55);
+            drawCentered(g2, "STAGE " + unlockedStage + " 열림!", new Font("맑은 고딕", Font.BOLD, 24), new Color(100, 255, 150), y + 55);
         }
         g2.dispose();
     }

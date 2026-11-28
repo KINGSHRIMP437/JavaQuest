@@ -39,7 +39,7 @@ public class TopicClearScreen extends JPanel {
 
         JLabel sub = new JLabel("축하합니다! 모든 스테이지를 클리어했어요", SwingConstants.CENTER);
         sub.setForeground(Color.WHITE);
-        sub.setFont(new Font("맑은 고딕", Font.PLAIN, 22));
+        sub.setFont(new Font("맑은 고딕", Font.PLAIN, 24));
         center.add(centered(sub));
         center.add(Box.createVerticalStrut(40));
 
@@ -53,7 +53,7 @@ public class TopicClearScreen extends JPanel {
             summary.add(stageRows[i]);
         }
         totalLabel.setForeground(new Color(100, 255, 150));
-        totalLabel.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+        totalLabel.setFont(new Font("맑은 고딕", Font.BOLD, 24));
         summary.add(totalLabel);
         summary.setMaximumSize(new Dimension(460, 230));
         summary.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -107,7 +107,7 @@ public class TopicClearScreen extends JPanel {
         JButton b = new JButton(text);
         b.setBackground(new Color(25, 30, 50));
         b.setForeground(Color.YELLOW);
-        b.setFont(new Font("맑은 고딕", Font.BOLD, 20));
+        b.setFont(new Font("맑은 고딕", Font.BOLD, 22));
         b.setBorder(BorderFactory.createCompoundBorder(
                 new LineBorder(BORDER_COLOR, 2), BorderFactory.createEmptyBorder(10, 30, 10, 30)));
         b.setFocusPainted(false);

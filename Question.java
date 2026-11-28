@@ -1,6 +1,6 @@
 import java.util.Scanner;
 
-// questions.txt 한 줄: 난이도|주제|질문|보기1|보기2|보기3|보기4|정답인덱스(0~3)|해설
+// 끝에 SHORT_ANSWER 또는 INITIAL_CONSONANT를 붙이면 입력형 퀴즈로 출제 (생략 시 객관식)
 public class Question implements Manageable {
     int difficulty;   // 1, 2, 3 이상 → 스테이지 1, 2, 3
     String topic;     // coding / common / name
@@ -8,6 +8,7 @@ public class Question implements Manageable {
     String[] choices = new String[4];
     int answer;       // 0~3
     String explain;
+    QuizItem.Type type = QuizItem.Type.MULTIPLE_CHOICE;
 
     @Override
     public void read(Scanner scan) {
@@ -18,6 +19,10 @@ public class Question implements Manageable {
         answer = Integer.parseInt(scan.next().trim());
         explain = scan.next().trim();
         if (answer < 0 || answer > 3) throw new IllegalArgumentException("정답 인덱스는 0~3");
+        if (scan.hasNext()) {
+            String rawType = scan.next().trim();
+            if (!rawType.isEmpty()) type = QuizItem.Type.valueOf(rawType.toUpperCase());
+        }
     }
 
     @Override
@@ -34,6 +39,6 @@ public class Question implements Manageable {
 
     // 프론트(BattleScreen)가 쓰는 형태로 변환
     public QuizItem toQuizItem() {
-        return new QuizItem(text, choices.clone(), answer, explain, null);
+        return new QuizItem(text, choices.clone(), answer, explain, null, type);
     }
 }

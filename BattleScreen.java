@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.HashSet;
+import java.util.Set;
 
 public class BattleScreen extends JPanel {
     private static final Color BG_COLOR = new Color(15, 20, 35);
@@ -21,6 +23,7 @@ public class BattleScreen extends JPanel {
     private Random random = new Random();
     private List<QuizItem> allQuestions = new ArrayList<>(); // 이번 스테이지 전체 문제
     private List<QuizItem> pool = new ArrayList<>();         // 아직 내지 않은 문제 (맞든 틀리든 한 번 낸 문제는 뺌)
+    private final Set<QuizItem> wrongQuestions = new HashSet<>(); // 이번 전투에서 오답이었던 문제는 재출제하지 않음
     private QuizItem current;
     private int stageNo;
     private String currentTopicId;
@@ -34,6 +37,8 @@ public class BattleScreen extends JPanel {
     private JPanel quizPanel;
     private JTextArea questionText = new JTextArea();
     private JButton[] choiceBtns = new JButton[4];
+    private JTextField answerInput = new JTextField();
+    private JPanel answerCards;
     private JProgressBar timeBar = new JProgressBar();
 
     private JLabel stageLabel = new JLabel("", SwingConstants.LEFT);
@@ -98,12 +103,13 @@ public class BattleScreen extends JPanel {
         this.currentTopicId = topicId;
         allQuestions = new ArrayList<>(questions);
         pool = new ArrayList<>(questions);
+        wrongQuestions.clear();
         // 공격 횟수 = 문제 수, 보스 HP = 문제 수 × 스테이지 HP 비율
-        int count = questions.size();
+        int count = BattleEngine.MAX_ATTACKS;
         int bossHp = stage.getBossHp(count);
-        if (isNameQuiz()) { // 이름 맞추기: 무작위 5문제, 보스 HP는 스테이지별 (없으면 기존 4지선다)
+        if (isNameQuiz()) { // 이름 맞추기도 남은 문제 수는 10, 문제는 5개씩 섞어 출제
             int n = nameQuizPanel.prepare(stageNo);
-            if (n > 0) { count = n; bossHp = NameQuizPanel.bossHpFor(stageNo, n); }
+            if (n > 0) bossHp = NameQuizPanel.bossHpFor(stageNo, n);
         }
         engine.startBattle(bossName, bossHp, count);
         inventory = new Inventory();   // 전투마다 아이템 1개씩 새로 지급 (누적 없음)
@@ -198,10 +204,10 @@ public class BattleScreen extends JPanel {
         leftHeader.setOpaque(false);
 
         stageLabel.setForeground(Color.YELLOW);
-        stageLabel.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+        stageLabel.setFont(new Font("맑은 고딕", Font.BOLD, 20));
 
         stageStarsLabel.setForeground(new Color(255, 215, 0)); // 금색
-        stageStarsLabel.setFont(new Font("Dialog", Font.BOLD, 22));
+        stageStarsLabel.setFont(new Font("Dialog", Font.BOLD, 24));
 
         stageLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         stageStarsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -212,7 +218,7 @@ public class BattleScreen extends JPanel {
         skipBtn = new JButton("스킵하기");
         skipBtn.setBackground(new Color(25, 30, 50));
         skipBtn.setForeground(Color.YELLOW);
-        skipBtn.setFont(new Font("맑은 고딕", Font.BOLD, 20));
+        skipBtn.setFont(new Font("맑은 고딕", Font.BOLD, 22));
         skipBtn.setBorder(new LineBorder(Color.YELLOW, 1));
         skipBtn.setFocusPainted(false);
         skipBtn.setPreferredSize(new Dimension(130, 40));
@@ -229,7 +235,7 @@ public class BattleScreen extends JPanel {
         leftHeader.add(skipBtn);
 
         turnLabel.setForeground(Color.WHITE);
-        turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+        turnLabel.setFont(new Font("맑은 고딕", Font.BOLD, 24));
 
         headerTop.add(leftHeader, BorderLayout.WEST);
         headerTop.add(turnLabel, BorderLayout.EAST);   // 오른쪽 위 (턴 카드는 이 글자 아래로 내려 그림)
@@ -250,7 +256,7 @@ public class BattleScreen extends JPanel {
         bossHpBar.setMaximumSize(new Dimension(500, 26));
         // 체력바 + 왼쪽 위 레벨 글자 (체력바와 같은 폭으로 묶어 가운데 정렬)
         bossLevelLabel.setForeground(Color.WHITE);
-        bossLevelLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        bossLevelLabel.setFont(new Font("맑은 고딕", Font.BOLD, 18));
         JPanel hpBlock = new JPanel(new BorderLayout(0, 2));
         hpBlock.setOpaque(false);
         hpBlock.add(bossLevelLabel, BorderLayout.NORTH);
@@ -273,7 +279,7 @@ public class BattleScreen extends JPanel {
         messageArea.setEditable(false);
         messageArea.setLineWrap(true);
         messageArea.setWrapStyleWord(true);
-        messageArea.setFont(new Font("맑은 고딕", Font.PLAIN, 24));
+        messageArea.setFont(new Font("맑은 고딕", Font.PLAIN, 26));
         messageArea.setForeground(Color.WHITE);
         messageArea.setBackground(new Color(25, 30, 50));
         messageArea.setBorder(BorderFactory.createCompoundBorder(
@@ -307,6 +313,8 @@ public class BattleScreen extends JPanel {
         quizHeader.add(questionText, BorderLayout.CENTER);
         quizContent.add(quizHeader, BorderLayout.NORTH);
 
+        answerCards = new JPanel(new CardLayout());
+        answerCards.setOpaque(false);
         JPanel choiceGrid = new JPanel(new GridLayout(2, 2, 12, 12));
         choiceGrid.setOpaque(false);
         choiceGrid.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
@@ -315,14 +323,38 @@ public class BattleScreen extends JPanel {
             choiceBtns[i] = new JButton();
             choiceBtns[i].setBackground(new Color(25, 30, 50));
             choiceBtns[i].setForeground(Color.WHITE);
-            choiceBtns[i].setFont(new Font("맑은 고딕", Font.PLAIN, 22));
+            choiceBtns[i].setFont(new Font("맑은 고딕", Font.PLAIN, 24));
             choiceBtns[i].setPreferredSize(new Dimension(0, 110));
             choiceBtns[i].setHorizontalAlignment(SwingConstants.LEFT);
             choiceBtns[i].setBorder(new LineBorder(Color.GRAY, 1));
             choiceBtns[i].addActionListener(e -> answer(idx));
             choiceGrid.add(choiceBtns[i]);
         }
-        quizContent.add(choiceGrid, BorderLayout.CENTER);
+        answerCards.add(choiceGrid, "choices");
+        JPanel inputPanel = new JPanel(new BorderLayout(8, 8));
+        inputPanel.setOpaque(false);
+        inputPanel.setBorder(BorderFactory.createEmptyBorder(18, 24, 18, 24));
+        answerInput.setFont(new Font("맑은 고딕", Font.PLAIN, 28));
+        answerInput.setHorizontalAlignment(SwingConstants.CENTER);
+        answerInput.addActionListener(e -> submitTypedAnswer());
+        JButton submitButton = new JButton("정답 제출");
+        submitButton.setFont(new Font("맑은 고딕", Font.BOLD, 26));
+        submitButton.addActionListener(e -> submitTypedAnswer());
+        // BorderLayout.CENTER는 남는 높이를 모두 입력칸에 주므로, 고정 높이 행을 둔다.
+        JPanel inputRow = new JPanel(new GridBagLayout());
+        inputRow.setOpaque(false);
+        GridBagConstraints inputGc = new GridBagConstraints();
+        inputGc.gridx = 0;
+        inputGc.gridy = 0;
+        inputGc.weightx = 1;
+        inputGc.fill = GridBagConstraints.HORIZONTAL;
+        inputGc.anchor = GridBagConstraints.PAGE_END;
+        answerInput.setPreferredSize(new Dimension(0, 56));
+        inputRow.add(answerInput, inputGc);
+        inputPanel.add(inputRow, BorderLayout.CENTER);
+        inputPanel.add(submitButton, BorderLayout.SOUTH);
+        answerCards.add(inputPanel, "input");
+        quizContent.add(answerCards, BorderLayout.CENTER);
         quizPanel.add(quizContent, BorderLayout.CENTER);
 
         dodgeGamePanel = new DodgeGamePanel(
@@ -428,7 +460,7 @@ public class BattleScreen extends JPanel {
         JPanel dodgeStatusPanel = new JPanel(new BorderLayout());
         dodgeStatusPanel.setOpaque(false);
         dodgeStatus.setForeground(Color.YELLOW);
-        dodgeStatus.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+        dodgeStatus.setFont(new Font("맑은 고딕", Font.BOLD, 20));
         dodgeStatusPanel.add(dodgeStatus, BorderLayout.WEST);
         bottomCards.add(dodgeStatusPanel, "dodge");
 
@@ -449,7 +481,7 @@ public class BattleScreen extends JPanel {
             JButton b = new JButton(name);
             b.setBackground(new Color(25, 30, 50));
             b.setForeground(Color.WHITE);
-            b.setFont(new Font("맑은 고딕", Font.BOLD, 24));
+            b.setFont(new Font("맑은 고딕", Font.BOLD, 26));
             b.setOpaque(true);
             b.setContentAreaFilled(true);
             b.setPreferredSize(new Dimension(0, 70));
@@ -504,7 +536,7 @@ public class BattleScreen extends JPanel {
         JButton b = new JButton(text);
         b.setBackground(new Color(25, 30, 50));
         b.setForeground(Color.WHITE);
-        b.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+        b.setFont(new Font("맑은 고딕", Font.BOLD, 24));
         b.setOpaque(true);
         b.setContentAreaFilled(true);
         b.setPreferredSize(new Dimension(0, 70));
@@ -558,7 +590,7 @@ public class BattleScreen extends JPanel {
         JButton b = new JButton(text);
         b.setBackground(new Color(25, 30, 50));
         b.setForeground(Color.YELLOW);
-        b.setFont(new Font("맑은 고딕", Font.BOLD, 20));
+        b.setFont(new Font("맑은 고딕", Font.BOLD, 22));
         b.setOpaque(true);
         b.setContentAreaFilled(true);
         b.setPreferredSize(new Dimension(0, 50));
@@ -604,14 +636,26 @@ public class BattleScreen extends JPanel {
         }
         // 보스 HP가 문제 수보다 많으면 문제를 다 맞힌 뒤 처음부터 다시 출제
         if (pool.isEmpty()) {
-            pool = new ArrayList<>(allQuestions);
-            // 아이템 등으로 전투가 이어져 문제를 다시 채울 때, 방금 푼 문제가 바로 또 나오지 않게 뺌
-            if (pool.size() > 1 && current != null) pool.remove(current);
+            // 오답은 전투가 끝날 때까지 제외하고, 정답 문제만 다시 섞어 사용
+            for (QuizItem q : allQuestions) if (!wrongQuestions.contains(q)) pool.add(q);
         }
-        if (pool.isEmpty()) return;
+        if (pool.isEmpty()) {
+            messageArea.setText("이번 전투의 문제를 모두 풀었습니다. 오답 문제는 다시 출제되지 않습니다.");
+            showCard(centerCards, "msg");
+            showCard(bottomCards, "continue");
+            return;
+        }
         current = pool.get(random.nextInt(pool.size()));
 
-        questionText.setText("Q. " + current.text + "\n");
+        String prompt = current.text;
+        if (current.type == QuizItem.Type.INITIAL_CONSONANT) {
+            prompt += "\n초성: " + initialConsonants(current.choices[current.answer]);
+        }
+        questionText.setText("Q. " + prompt + "\n" + (current.type == QuizItem.Type.MULTIPLE_CHOICE ? "" : "정답을 입력하세요"));
+        boolean typed = current.type != QuizItem.Type.MULTIPLE_CHOICE;
+        ((CardLayout) answerCards.getLayout()).show(answerCards, typed ? "input" : "choices");
+        answerInput.setText("");
+        if (typed) SwingUtilities.invokeLater(() -> answerInput.requestFocusInWindow());
         for (int i = 0; i < 4; i++) {
             char prefix = (char) ('A' + i);
             // HTML 라벨로 넣어 긴 보기는 버튼 폭에서 줄바꿈 (<, > 같은 기호는 이스케이프)
@@ -638,16 +682,42 @@ public class BattleScreen extends JPanel {
         finishQuiz(idx == current.answer, "");
     }
 
+    private void submitTypedAnswer() {
+        if (current == null || current.type == QuizItem.Type.MULTIPLE_CHOICE) return;
+        String entered = normalizeAnswer(answerInput.getText());
+        String expected = normalizeAnswer(current.choices[current.answer]);
+        if (!entered.isEmpty()) finishQuiz(entered.equalsIgnoreCase(expected), "");
+    }
+
+    private String normalizeAnswer(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", "").trim();
+    }
+
+    private String initialConsonants(String value) {
+        StringBuilder result = new StringBuilder();
+        String consonants = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c >= 0xAC00 && c <= 0xD7A3) result.append(consonants.charAt((c - 0xAC00) / 588));
+            else if (!Character.isWhitespace(c)) result.append(c);
+        }
+        return result.toString();
+    }
+
     private void finishQuiz(boolean correct, String prefix) {
         timer.stop();
         engine.submitAnswer(correct);
         pool.remove(current);   // 맞든 틀리든 한 번 낸 문제는 이번 전투에서 다시 내지 않음 (같은 문제 중복 출제 방지)
+        if (!correct) wrongQuestions.add(current);
         if (correct) {
             monsterView.hit();
         }
         updateStatus();
 
-        String text = correct ? "정답! " : prefix + "오답 (정답: " + (current.answer + 1) + "번) ";
+        String correctAnswer = current.type == QuizItem.Type.MULTIPLE_CHOICE
+                ? (current.answer + 1) + "번"
+                : current.choices[current.answer];
+        String text = correct ? "정답! " : prefix + "오답 (정답: " + correctAnswer + ") ";
         text += "\n\n해설: " + current.explain;
 
         if (engine.isWin()) {

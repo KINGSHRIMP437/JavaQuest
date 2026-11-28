@@ -112,7 +112,7 @@ public class TurnCards {
         g.setFont(new Font("맑은 고딕", Font.BOLD, 26));
         g.drawString(myCard ? "나의 턴" : "적의 턴", px + pw + 12, y + 38);
         g.setColor(acc);
-        g.setFont(new Font("맑은 고딕", Font.BOLD, 15));
+        g.setFont(new Font("맑은 고딕", Font.BOLD, 17));
         g.drawString(myCard ? "문제를 풀어 공격!" : "방향키로 피하기!", px + pw + 14, y + 60);
         if (shine >= 0) {                    // 빛이 카드 위를 한 번 훑고 지나감
             double sx = x + (CARD_W + 120) * shine - 60;
