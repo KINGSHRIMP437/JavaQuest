@@ -339,6 +339,17 @@ public class BattleScreen extends JPanel {
         answerInput.addActionListener(e -> submitTypedAnswer());
         JButton submitButton = new JButton("정답 제출");
         submitButton.setFont(new Font("맑은 고딕", Font.BOLD, 26));
+        submitButton.setBackground(new Color(25, 30, 50));   // 다른 버튼과 같은 어두운 배경 + 민트 테두리
+        submitButton.setForeground(Color.WHITE);
+        submitButton.setOpaque(true);
+        submitButton.setContentAreaFilled(true);
+        submitButton.setBorder(new LineBorder(BORDER_COLOR, 2));
+        submitButton.setFocusPainted(false);
+        submitButton.setPreferredSize(new Dimension(0, 56));
+        answerInput.setBackground(new Color(25, 30, 50));
+        answerInput.setForeground(Color.WHITE);
+        answerInput.setCaretColor(Color.WHITE);
+        answerInput.setBorder(new LineBorder(Color.GRAY, 2));
         submitButton.addActionListener(e -> submitTypedAnswer());
         // BorderLayout.CENTER는 남는 높이를 모두 입력칸에 주므로, 고정 높이 행을 둔다.
         JPanel inputRow = new JPanel(new GridBagLayout());
@@ -638,13 +649,13 @@ public class BattleScreen extends JPanel {
         if (pool.isEmpty()) {
             // 오답은 전투가 끝날 때까지 제외하고, 정답 문제만 다시 섞어 사용
             for (QuizItem q : allQuestions) if (!wrongQuestions.contains(q)) pool.add(q);
+            // 남은 문제가 모두 오답뿐이면(문제 개수 초기화 아이템 등) 오답도 다시 섞어 냄 — 안 그러면 낼 문제가 없어 전투가 멈춤
+            if (pool.isEmpty()) {
+                pool.addAll(allQuestions);
+                if (pool.size() > 1 && current != null) pool.remove(current);   // 방금 낸 문제는 바로 또 나오지 않게
+            }
         }
-        if (pool.isEmpty()) {
-            messageArea.setText("이번 전투의 문제를 모두 풀었습니다. 오답 문제는 다시 출제되지 않습니다.");
-            showCard(centerCards, "msg");
-            showCard(bottomCards, "continue");
-            return;
-        }
+        if (pool.isEmpty()) return;   // 이 스테이지에 문제가 하나도 없을 때만
         current = pool.get(random.nextInt(pool.size()));
 
         String prompt = current.text;
@@ -693,7 +704,7 @@ public class BattleScreen extends JPanel {
         return value == null ? "" : value.replaceAll("\\s+", "").trim();
     }
 
-    private String initialConsonants(String value) {
+    static String initialConsonants(String value) {   // BackendTest에서도 씀
         StringBuilder result = new StringBuilder();
         String consonants = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
         for (int i = 0; i < value.length(); i++) {

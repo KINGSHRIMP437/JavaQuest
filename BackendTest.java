@@ -9,12 +9,15 @@ public class BackendTest {
             for (int s = 1; s <= 3; s++) {
                 assert sm.findStage(topic, s) != null : topic + " " + s + " 보스 없음";
                 // 이름 맞추기 문제는 namequiz/name_quiz.txt에 있음 (NameQuizTest가 검사)
-                int expected = topic.equals("name") ? 0 : 10;
+                int expected = topic.equals("name") ? 0 : 20;
                 assert qm.findByStage(topic, s).size() == expected : topic + " " + s + " 문제는 " + expected + "개";
             }
         assert sm.findStage("CODING", 3).getBossName().equals("NullPointerException (Boss)");
         assert sm.findStage("coding", 4) == null;
         assert qm.findByStage("coding", 1).get(0).answer == 1; // 클래스로 만든 실제 대상 → 보기2 "객체"
+        assert qm.findByStage("coding", 1).get(0).type == QuizItem.Type.INITIAL_CONSONANT : "줄 끝 유형 읽기";
+        assert BattleScreen.initialConsonants("서울 특별시").equals("ㅅㅇㅌㅂㅅ") : "초성: 띄어쓰기 빼고 첫소리만";
+        assert BattleScreen.initialConsonants("void()").equals("void()") : "한글이 아니면 그대로";
         assert BattleEngine.starsFor(5) == 3 && BattleEngine.starsFor(4) == 2 && BattleEngine.starsFor(3) == 2
             && BattleEngine.starsFor(2) == 1 && BattleEngine.starsFor(1) == 1 : "별점: 하트 5 → 3, 4·3 → 2, 2·1 → 1";
         BattleEngine skip = new BattleEngine();
